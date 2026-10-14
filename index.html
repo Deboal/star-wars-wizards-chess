@@ -1,0 +1,2761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holochess: Marble & Obsidian — Star Wars 3D Wizard's Chess</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Space Grotesk & Material Symbols -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,1,0" />
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- JSZip for 1-Click Antigravity & Netlify Bundle Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        :root {
+            --md-surface: rgba(18, 22, 33, 0.85);
+            --md-border: rgba(255, 255, 255, 0.14);
+            --jedi-cyan: #38bdf8;
+            --sith-crimson: #f43f5e;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: radial-gradient(circle at 50% 35%, #162038 0%, #090c15 70%, #05070c 100%);
+            font-family: 'Inter', sans-serif;
+            color: #f8fafc;
+        }
+        #canvas-container {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            outline: none;
+        }
+        .md3-bar {
+            background: var(--md-surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--md-border);
+            box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 4px 12px -2px rgba(0, 0, 0, 0.45);
+        }
+        .md3-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.48rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+            color: #e2e8f0;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+        .md3-btn:hover {
+            background: rgba(255, 255, 255, 0.14);
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.24);
+        }
+        .md3-btn:active {
+            transform: translateY(0px) scale(0.97);
+        }
+        .md3-btn.active-jedi {
+            background: rgba(56, 189, 248, 0.18);
+            border-color: rgba(56, 189, 248, 0.55);
+            color: #bae6fd;
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
+        }
+        .md3-btn.accent-amber {
+            background: rgba(245, 158, 11, 0.16);
+            border-color: rgba(245, 158, 11, 0.45);
+            color: #fde68a;
+        }
+        .md3-btn.accent-amber:hover {
+            background: rgba(245, 158, 11, 0.28);
+        }
+        .md3-btn.accent-emerald {
+            background: rgba(16, 185, 129, 0.18);
+            border-color: rgba(16, 185, 129, 0.5);
+            color: #a7f3d0;
+        }
+        .md3-btn.accent-emerald:hover {
+            background: rgba(16, 185, 129, 0.3);
+        }
+        .title-font {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .material-symbols-rounded {
+            font-size: 18px;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Viewport Container -->
+    <div id="canvas-container"></div>
+
+    <header class="fixed top-4 left-1/2 -translate-x-1/2 z-20 w-[96%] max-w-6xl pointer-events-none">
+        <nav class="md3-bar rounded-3xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+            
+            <!-- Left: Brand & Turn Status Chip -->
+            <div class="flex items-center gap-2.5 flex-wrap">
+                <div class="flex items-center gap-2 pl-1.5">
+                    <span class="material-symbols-rounded text-sky-400">grid_on</span>
+                    <span class="title-font font-bold tracking-wider text-xs sm:text-sm uppercase bg-gradient-to-r from-sky-200 via-white to-rose-300 bg-clip-text text-transparent">
+                        Dejarik : Wizard's Chess
+                    </span>
+                </div>
+
+                <div class="h-4 w-[1px] bg-white/15 hidden sm:block"></div>
+
+                <!-- Dynamic Faction Turn Pill -->
+                <div id="turn-badge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/40 text-sky-200 text-xs font-semibold transition-all duration-300">
+                    <span id="turn-dot" class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
+                    <span id="turn-text">LIGHT SIDE (MARBLE)</span>
+                </div>
+
+                <!-- Captured Counters -->
+                <div class="flex items-center gap-2.5 px-3 py-1 rounded-full bg-black/40 border border-white/10 text-xs">
+                    <div class="flex items-center gap-1" title="Shattered Obsidian Pieces">
+                        <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                        <span class="text-slate-400 hidden sm:inline">Shattered:</span>
+                        <span id="captured-by-light" class="font-bold text-sky-300">0</span>
+                    </div>
+                    <span class="text-white/20">|</span>
+                    <div class="flex items-center gap-1" title="Shattered Marble Pieces">
+                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span id="captured-by-dark" class="font-bold text-rose-400">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Single-Level Action Controls -->
+            <div class="flex items-center gap-1.5 flex-wrap ml-auto">
+                <!-- Opponent Mode Toggle (vs Droid AI / 2P Local) -->
+                <button id="btn-mode" class="md3-btn active-jedi" title="Toggle vs Sith AI or 2-Player Pass & Play">
+                    <span class="material-symbols-rounded" id="mode-icon">smart_toy</span>
+                    <span id="mode-label">VS Sith AI</span>
+                </button>
+
+                <!-- Instant Demo Shatter / Strike Showcase -->
+                <button id="btn-demo-shatter" class="md3-btn accent-amber" title="Execute an immediate cinematic Attack & Shatter strike">
+                    <span class="material-symbols-rounded">bolt</span>
+                    <span class="hidden sm:inline">Demo Shatter</span>
+                </button>
+
+                <!-- Camera Preset Cycle -->
+                <button id="btn-camera" class="md3-btn" title="Cycle Camera Angle (Jedi, Sith, Overhead, Cinematic)">
+                    <span class="material-symbols-rounded">videocam</span>
+                    <span id="camera-label" class="hidden md:inline">Jedi View</span>
+                </button>
+
+                <!-- Undo Last Move -->
+                <button id="btn-undo" class="md3-btn" title="Undo Last Move">
+                    <span class="material-symbols-rounded">undo</span>
+                    <span class="hidden lg:inline">Undo</span>
+                </button>
+
+                <!-- Sound FX Toggle -->
+                <button id="btn-sound" class="md3-btn" title="Toggle Synth Audio">
+                    <span class="material-symbols-rounded" id="sound-icon">volume_up</span>
+                </button>
+
+                <!-- Export Deployment ZIP for Antigravity / Netlify -->
+                <button id="btn-export-zip" class="md3-btn accent-emerald" title="Download ready-to-deploy .ZIP bundle (index.html + netlify.toml + README.md)">
+                    <span class="material-symbols-rounded">folder_zip</span>
+                    <span class="hidden sm:inline" id="export-zip-label">Export .ZIP</span>
+                </button>
+
+                <!-- New Match -->
+                <button id="btn-reset" class="md3-btn hover:bg-rose-500/20 hover:border-rose-400/40" title="Reset Chessboard">
+                    <span class="material-symbols-rounded text-rose-300">restart_alt</span>
+                    <span class="hidden sm:inline text-rose-200">New Battle</span>
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Bottom Minimalist Character Telemetry & Controls Hint -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2 w-[94%] max-w-2xl">
+        <div id="combat-banner" class="md3-bar rounded-full px-5 py-2.5 text-xs sm:text-sm font-medium text-center text-slate-100 flex items-center justify-center gap-2.5 transition-all duration-300">
+            <span id="banner-icon" class="material-symbols-rounded text-sky-400">swords</span>
+            <span id="banner-text">Click any White Marble character to inspect valid moves, or press "Demo Shatter" for instant combat.</span>
+        </div>
+    </div>
+
+    <!-- End-of-Game Material Dialog -->
+    <div id="modal-overlay" class="fixed inset-0 z-30 bg-black/70 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="md3-bar rounded-3xl p-6 sm:p-8 max-w-md w-full border border-white/20 text-center space-y-5">
+            <div class="w-14 h-14 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center mx-auto">
+                <span id="modal-icon" class="material-symbols-rounded text-3xl text-sky-300">military_tech</span>
+            </div>
+            <h2 id="modal-title" class="title-font text-2xl font-bold tracking-wide text-white">VICTORY IN THE FORCE</h2>
+            <p id="modal-desc" class="text-sm text-slate-300 leading-relaxed">
+                The Dark Side's Obsidian King has been shattered.
+            </p>
+            <div class="flex items-center justify-center gap-3 pt-2">
+                <button id="modal-btn-restart" class="md3-btn active-jedi px-6 py-2.5 text-sm">
+                    <span class="material-symbols-rounded">replay</span>
+                    <span>Play Again</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /***********************************************************************
+         * 1. SELF-CONTAINED FIDE CHESS ENGINE (ZERO EXTERNAL CDN FAILURES)
+         ***********************************************************************/
+        class HolochessRulesEngine {
+            constructor() {
+                this.files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+                this.reset();
+            }
+
+            reset() {
+                this.grid = Array.from({ length: 8 }, () => Array(8).fill(null));
+                this.turnColor = 'w';
+                this.history = [];
+                this.castling = { wK: true, wQ: true, bK: true, bQ: true };
+                this.enPassantTarget = null;
+
+                const backRank = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
+                for (let c = 0; c < 8; c++) {
+                    this.grid[0][c] = { type: backRank[c], color: 'b' };
+                    this.grid[1][c] = { type: 'p', color: 'b' };
+                    this.grid[6][c] = { type: 'p', color: 'w' };
+                    this.grid[7][c] = { type: backRank[c], color: 'w' };
+                }
+            }
+
+            sqToRC(sq) {
+                const c = sq.charCodeAt(0) - 97;
+                const r = 8 - parseInt(sq[1], 10);
+                return { r, c };
+            }
+
+            rcToSq(r, c) {
+                return `${this.files[c]}${8 - r}`;
+            }
+
+            inBounds(r, c) {
+                return r >= 0 && r < 8 && c >= 0 && c < 8;
+            }
+
+            get(sq) {
+                const { r, c } = this.sqToRC(sq);
+                return this.inBounds(r, c) ? this.grid[r][c] : null;
+            }
+
+            board() {
+                return this.grid.map(row => row.map(cell => (cell ? { ...cell } : null)));
+            }
+
+            turn() {
+                return this.turnColor;
+            }
+
+            cloneState() {
+                return {
+                    grid: this.board(),
+                    turnColor: this.turnColor,
+                    castling: { ...this.castling },
+                    enPassantTarget: this.enPassantTarget ? { ...this.enPassantTarget } : null
+                };
+            }
+
+            restoreState(st) {
+                this.grid = st.grid.map(row => row.map(cell => (cell ? { ...cell } : null)));
+                this.turnColor = st.turnColor;
+                this.castling = { ...st.castling };
+                this.enPassantTarget = st.enPassantTarget ? { ...st.enPassantTarget } : null;
+            }
+
+            findKing(color) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const p = this.grid[r][c];
+                        if (p && p.color === color && p.type === 'k') return { r, c };
+                    }
+                }
+                return null;
+            }
+
+            isSquareAttacked(targetR, targetC, byColor) {
+                const pawnDir = byColor === 'w' ? -1 : 1;
+                const pawnStartR = targetR - pawnDir;
+                for (const dc of [-1, 1]) {
+                    const pc = targetC + dc;
+                    if (this.inBounds(pawnStartR, pc)) {
+                        const p = this.grid[pawnStartR][pc];
+                        if (p && p.color === byColor && p.type === 'p') return true;
+                    }
+                }
+
+                const knightOffsets = [
+                    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                    [1, -2], [1, 2], [2, -1], [2, 1]
+                ];
+                for (const [dr, dc] of knightOffsets) {
+                    const nr = targetR + dr, nc = targetC + dc;
+                    if (this.inBounds(nr, nc)) {
+                        const p = this.grid[nr][nc];
+                        if (p && p.color === byColor && p.type === 'n') return true;
+                    }
+                }
+
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const kr = targetR + dr, kc = targetC + dc;
+                        if (this.inBounds(kr, kc)) {
+                            const p = this.grid[kr][kc];
+                            if (p && p.color === byColor && p.type === 'k') return true;
+                        }
+                    }
+                }
+
+                const orthoDirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                for (const [dr, dc] of orthoDirs) {
+                    let r = targetR + dr, c = targetC + dc;
+                    while (this.inBounds(r, c)) {
+                        const p = this.grid[r][c];
+                        if (p) {
+                            if (p.color === byColor && (p.type === 'r' || p.type === 'q')) return true;
+                            break;
+                        }
+                        r += dr; c += dc;
+                    }
+                }
+
+                const diagDirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+                for (const [dr, dc] of diagDirs) {
+                    let r = targetR + dr, c = targetC + dc;
+                    while (this.inBounds(r, c)) {
+                        const p = this.grid[r][c];
+                        if (p) {
+                            if (p.color === byColor && (p.type === 'b' || p.type === 'q')) return true;
+                            break;
+                        }
+                        r += dr; c += dc;
+                    }
+                }
+
+                return false;
+            }
+
+            in_check(color = this.turnColor) {
+                const kingPos = this.findKing(color);
+                if (!kingPos) return false;
+                const enemy = color === 'w' ? 'b' : 'w';
+                return this.isSquareAttacked(kingPos.r, kingPos.c, enemy);
+            }
+
+            generatePseudoMovesForSquare(r, c) {
+                const p = this.grid[r][c];
+                if (!p) return [];
+                const moves = [];
+                const color = p.color;
+                const enemy = color === 'w' ? 'b' : 'w';
+                const fromSq = this.rcToSq(r, c);
+
+                const addMove = (toR, toC, flags = 'n') => {
+                    moves.push({
+                        from: fromSq,
+                        to: this.rcToSq(toR, toC),
+                        color,
+                        piece: p.type,
+                        flags
+                    });
+                };
+
+                if (p.type === 'p') {
+                    const dir = color === 'w' ? -1 : 1;
+                    const startRank = color === 'w' ? 6 : 1;
+                    const promoRank = color === 'w' ? 0 : 7;
+
+                    const r1 = r + dir;
+                    if (this.inBounds(r1, c) && !this.grid[r1][c]) {
+                        addMove(r1, c, r1 === promoRank ? 'np' : 'n');
+                        const r2 = r + dir * 2;
+                        if (r === startRank && this.inBounds(r2, c) && !this.grid[r2][c]) {
+                            addMove(r2, c, 'b');
+                        }
+                    }
+
+                    for (const dc of [-1, 1]) {
+                        const tc = c + dc;
+                        if (!this.inBounds(r1, tc)) continue;
+                        const target = this.grid[r1][tc];
+                        if (target && target.color === enemy) {
+                            addMove(r1, tc, r1 === promoRank ? 'cp' : 'c');
+                        } else if (
+                            this.enPassantTarget &&
+                            this.enPassantTarget.r === r1 &&
+                            this.enPassantTarget.c === tc
+                        ) {
+                            addMove(r1, tc, 'e');
+                        }
+                    }
+                } else if (p.type === 'n') {
+                    const offsets = [
+                        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                        [1, -2], [1, 2], [2, -1], [2, 1]
+                    ];
+                    for (const [dr, dc] of offsets) {
+                        const nr = r + dr, nc = c + dc;
+                        if (!this.inBounds(nr, nc)) continue;
+                        const target = this.grid[nr][nc];
+                        if (!target) addMove(nr, nc, 'n');
+                        else if (target.color === enemy) addMove(nr, nc, 'c');
+                    }
+                } else if (p.type === 'b' || p.type === 'r' || p.type === 'q') {
+                    const dirs = [];
+                    if (p.type === 'b' || p.type === 'q') dirs.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+                    if (p.type === 'r' || p.type === 'q') dirs.push([-1, 0], [1, 0], [0, -1], [0, 1]);
+
+                    for (const [dr, dc] of dirs) {
+                        let nr = r + dr, nc = c + dc;
+                        while (this.inBounds(nr, nc)) {
+                            const target = this.grid[nr][nc];
+                            if (!target) {
+                                addMove(nr, nc, 'n');
+                            } else {
+                                if (target.color === enemy) addMove(nr, nc, 'c');
+                                break;
+                            }
+                            nr += dr; nc += dc;
+                        }
+                    }
+                } else if (p.type === 'k') {
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            const nr = r + dr, nc = c + dc;
+                            if (!this.inBounds(nr, nc)) continue;
+                            const target = this.grid[nr][nc];
+                            if (!target) addMove(nr, nc, 'n');
+                            else if (target.color === enemy) addMove(nr, nc, 'c');
+                        }
+                    }
+
+                    const homeR = color === 'w' ? 7 : 0;
+                    if (r === homeR && c === 4 && !this.in_check(color)) {
+                        const canK = color === 'w' ? this.castling.wK : this.castling.bK;
+                        if (
+                            canK &&
+                            !this.grid[homeR][5] &&
+                            !this.grid[homeR][6] &&
+                            !this.isSquareAttacked(homeR, 5, enemy) &&
+                            !this.isSquareAttacked(homeR, 6, enemy)
+                        ) {
+                            addMove(homeR, 6, 'k');
+                        }
+                        const canQ = color === 'w' ? this.castling.wQ : this.castling.bQ;
+                        if (
+                            canQ &&
+                            !this.grid[homeR][3] &&
+                            !this.grid[homeR][2] &&
+                            !this.grid[homeR][1] &&
+                            !this.isSquareAttacked(homeR, 3, enemy) &&
+                            !this.isSquareAttacked(homeR, 2, enemy)
+                        ) {
+                            addMove(homeR, 2, 'q');
+                        }
+                    }
+                }
+
+                return moves;
+            }
+
+            moves(options = {}) {
+                const legal = [];
+                const targetSq = options.square || null;
+
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const p = this.grid[r][c];
+                        if (!p || p.color !== this.turnColor) continue;
+                        const sq = this.rcToSq(r, c);
+                        if (targetSq && sq !== targetSq) continue;
+
+                        const pseudo = this.generatePseudoMovesForSquare(r, c);
+                        for (const mv of pseudo) {
+                            const snapshot = this.cloneState();
+                            this.applyMoveRaw(mv);
+                            const kingSafe = !this.in_check(p.color);
+                            this.restoreState(snapshot);
+                            if (kingSafe) legal.push(mv);
+                        }
+                    }
+                }
+                return legal;
+            }
+
+            applyMoveRaw(mv) {
+                const from = this.sqToRC(mv.from);
+                const to = this.sqToRC(mv.to);
+                const movingPiece = { ...this.grid[from.r][from.c] };
+
+                if (mv.flags.includes('e')) {
+                    const epCaptureR = movingPiece.color === 'w' ? to.r + 1 : to.r - 1;
+                    this.grid[epCaptureR][to.c] = null;
+                }
+
+                if (mv.flags.includes('k')) {
+                    this.grid[to.r][5] = this.grid[to.r][7];
+                    this.grid[to.r][7] = null;
+                } else if (mv.flags.includes('q')) {
+                    this.grid[to.r][3] = this.grid[to.r][0];
+                    this.grid[to.r][0] = null;
+                }
+
+                this.grid[from.r][from.c] = null;
+                if (mv.flags.includes('p')) {
+                    movingPiece.type = 'q';
+                }
+                this.grid[to.r][to.c] = movingPiece;
+
+                if (movingPiece.type === 'k') {
+                    if (movingPiece.color === 'w') { this.castling.wK = false; this.castling.wQ = false; }
+                    else { this.castling.bK = false; this.castling.bQ = false; }
+                }
+                if (mv.from === 'h1' || mv.to === 'h1') this.castling.wK = false;
+                if (mv.from === 'a1' || mv.to === 'a1') this.castling.wQ = false;
+                if (mv.from === 'h8' || mv.to === 'h8') this.castling.bK = false;
+                if (mv.from === 'a8' || mv.to === 'a8') this.castling.bQ = false;
+
+                if (mv.flags === 'b') {
+                    this.enPassantTarget = { r: (from.r + to.r) / 2, c: from.c };
+                } else {
+                    this.enPassantTarget = null;
+                }
+
+                this.turnColor = this.turnColor === 'w' ? 'b' : 'w';
+            }
+
+            move(moveInput) {
+                const legal = this.moves();
+                const match = legal.find(m => m.from === moveInput.from && m.to === moveInput.to);
+                if (!match) return null;
+
+                this.history.push(this.cloneState());
+                this.applyMoveRaw(match);
+                return match;
+            }
+
+            undo() {
+                if (this.history.length === 0) return null;
+                const prev = this.history.pop();
+                this.restoreState(prev);
+                return true;
+            }
+
+            in_checkmate() {
+                return this.in_check(this.turnColor) && this.moves().length === 0;
+            }
+
+            game_over() {
+                return this.moves().length === 0;
+            }
+        }
+
+        /***********************************************************************
+         * 2. STAR WARS CHARACTER LORE & ROLE MAPPING
+         ***********************************************************************/
+        const STAR_WARS_ROSTER = {
+            w: {
+                faction: 'Light Side (White Carrara Marble)',
+                k: { name: 'Grand Master Yoda', weapon: 'Emerald Lightsaber & Force Mastery', saberColor: 0x22c55e, attackType: 'saber' },
+                q: { name: 'Rey Skywalker', weapon: 'Reforged Cyan Lightsaber', saberColor: 0x38bdf8, attackType: 'saber' },
+                b: { name: 'Obi-Wan Kenobi', weapon: 'Soresu Blue Lightsaber', saberColor: 0x3b82f6, attackType: 'saber' },
+                n: { name: 'Chewbacca', weapon: 'Wookiee Bowcaster Quarrels', saberColor: 0xf97316, attackType: 'blaster' },
+                r: { name: 'R2-D2 Astromech', weapon: 'Electro-Shock Arc Welder', saberColor: 0x60a5fa, attackType: 'blaster' },
+                p: { name: 'Rebel Fleet Trooper', weapon: 'A280 Blaster Rifle', saberColor: 0x38bdf8, attackType: 'blaster' }
+            },
+            b: {
+                faction: 'Dark Side (Volcanic Obsidian)',
+                k: { name: 'Emperor Palpatine', weapon: 'Sith Force Lightning', saberColor: 0xa855f7, attackType: 'lightning' },
+                q: { name: 'Darth Vader', weapon: 'Crimson Sith Lightsaber', saberColor: 0xf43f5e, attackType: 'saber' },
+                b: { name: 'Darth Maul', weapon: 'Dual-Bladed Crimson Saber', saberColor: 0xef4444, attackType: 'saber' },
+                n: { name: 'Boba Fett', weapon: 'EE-3 Carbine & Wrist Blaster', saberColor: 0xf97316, attackType: 'blaster' },
+                r: { name: 'Imperial TIE Turret', weapon: 'Dual Green Laser Cannons', saberColor: 0x10b981, attackType: 'blaster' },
+                p: { name: 'Imperial Stormtrooper', weapon: 'E-11 Blaster Rifle', saberColor: 0xf43f5e, attackType: 'blaster' }
+            }
+        };
+
+        /***********************************************************************
+         * 3. SYNTHESIZED WEB AUDIO ENGINE (NO EXTERNAL FILES REQUIRED)
+         ***********************************************************************/
+        class StarWarsAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                try {
+                    if (!this.ctx) {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        if (AudioCtx) this.ctx = new AudioCtx();
+                    }
+                    if (this.ctx && this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                } catch (err) {
+                    // Ignore audio autoplay blocks
+                }
+            }
+
+            playSelect(isLight) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = isLight ? 'sine' : 'triangle';
+                osc.frequency.setValueAtTime(isLight ? 520 : 190, now);
+                osc.frequency.exponentialRampToValueAtTime(isLight ? 780 : 130, now + 0.14);
+
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+
+            playStoneSlide() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(95, now);
+                osc.frequency.linearRampToValueAtTime(115, now + 0.35);
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(260, now);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.1, now + 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.42);
+            }
+
+            playSaberSwing() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(135, now);
+                osc.frequency.exponentialRampToValueAtTime(290, now + 0.18);
+                osc.frequency.exponentialRampToValueAtTime(110, now + 0.38);
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(420, now);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.22, now + 0.15);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.42);
+            }
+
+            playBlasterBolt() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(980, now);
+                osc.frequency.exponentialRampToValueAtTime(140, now + 0.22);
+
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            playStoneShatter() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.45;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.14));
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(900, now);
+                filter.Q.setValueAtTime(1.5, now);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.005, now + 0.45);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
+
+                [640, 1120, 880, 1480].forEach((freq, idx) => {
+                    const shardOsc = this.ctx.createOscillator();
+                    const shardGain = this.ctx.createGain();
+                    shardOsc.type = 'triangle';
+                    const start = now + idx * 0.05;
+                    shardOsc.frequency.setValueAtTime(freq, start);
+                    shardOsc.frequency.exponentialRampToValueAtTime(freq * 0.6, start + 0.18);
+                    shardGain.gain.setValueAtTime(0.08, start);
+                    shardGain.gain.exponentialRampToValueAtTime(0.001, start + 0.19);
+                    shardOsc.connect(shardGain);
+                    shardGain.connect(this.ctx.destination);
+                    shardOsc.start(start);
+                    shardOsc.stop(start + 0.2);
+                });
+            }
+        }
+
+        const soundFX = new StarWarsAudioEngine();
+
+        /***********************************************************************
+         * 4. HIGH-DEFINITION 3D RENDERER (WEBGL2/1 + HD SHADED 3D ENGINE)
+         * Eliminates board z-clipping, flat low-poly shading, and dark tile blending
+         ***********************************************************************/
+        class HighDefCanvas3DRenderer {
+            constructor(width, height) {
+                this.domElement = document.createElement('canvas');
+                this.ctx = this.domElement.getContext('2d', { alpha: false });
+                this.width = width;
+                this.height = height;
+                this.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+                this.shadowMap = { enabled: true, type: null };
+                this.setSize(width, height);
+
+                this._projScreenMatrix = new THREE.Matrix4();
+                this._normalMatrix = new THREE.Matrix3();
+                this._vA = new THREE.Vector3();
+                this._vB = new THREE.Vector3();
+                this._vC = new THREE.Vector3();
+                this._wA = new THREE.Vector3();
+                this._wB = new THREE.Vector3();
+                this._wC = new THREE.Vector3();
+                this._centroid = new THREE.Vector3();
+                this._normal = new THREE.Vector3();
+                this._edge1 = new THREE.Vector3();
+                this._edge2 = new THREE.Vector3();
+                this._viewDir = new THREE.Vector3();
+                this._halfVec = new THREE.Vector3();
+
+                // Key, Fill (Jedi Cyan), and Rim (Sith Crimson) directional vectors
+                this._keyLight = new THREE.Vector3(0.42, 0.82, 0.38).normalize();
+                this._fillLight = new THREE.Vector3(-0.55, 0.45, 0.70).normalize();
+                this._backLight = new THREE.Vector3(0.15, 0.55, -0.82).normalize();
+            }
+
+            setPixelRatio(dpr) {
+                this.pixelRatio = Math.min(dpr || 1, 2);
+                this.setSize(this.width, this.height);
+            }
+
+            setSize(w, h) {
+                this.width = w;
+                this.height = h;
+                this.domElement.width = Math.max(1, Math.floor(w * this.pixelRatio));
+                this.domElement.height = Math.max(1, Math.floor(h * this.pixelRatio));
+            }
+
+            projectPoint(vec3, halfW, halfH) {
+                const v = vec3.clone().applyMatrix4(this._projScreenMatrix);
+                return {
+                    x: (v.x + 1) * halfW,
+                    y: (-v.y + 1) * halfH,
+                    z: v.z,
+                    visible: v.z > -1 && v.z < 1
+                };
+            }
+
+            render(scene, camera) {
+                const ctx = this.ctx;
+                const W = this.domElement.width;
+                const H = this.domElement.height;
+                if (!ctx || W === 0 || H === 0) return;
+
+                // 1. Deep Sanctuary Radial Background Gradient
+                const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.38, W * 0.05, W * 0.5, H * 0.5, Math.max(W, H) * 0.75);
+                bgGrad.addColorStop(0, '#1a2744');
+                bgGrad.addColorStop(0.55, '#0b101e');
+                bgGrad.addColorStop(1, '#05070e');
+                ctx.fillStyle = bgGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                scene.updateMatrixWorld(true);
+                camera.updateMatrixWorld(true);
+                this._projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+
+                const halfW = W * 0.5;
+                const halfH = H * 0.5;
+                const camPos = camera.position;
+
+                // Multi-Pass Render Buckets to prevent any board/tile/piece sorting overlap:
+                // Pass 0: Board Frame & Rim
+                // Pass 1: 64 Marble & Obsidian Tiles + Highlights
+                // Pass 2: 32 Sculpted Pieces, Weapons & Shards
+                const passBuckets = [[], [], []];
+                const glowOverlays = [];
+                const pieceShadowAnchors = [];
+
+                scene.traverseVisible((obj) => {
+                    if (obj.isPoints && obj.geometry) {
+                        const posAttr = obj.geometry.attributes.position;
+                        if (!posAttr) return;
+                        ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
+                        for (let i = 0; i < posAttr.count; i += 2) {
+                            this._vA.fromBufferAttribute(posAttr, i).applyMatrix4(obj.matrixWorld);
+                            this._vA.applyMatrix4(this._projScreenMatrix);
+                            if (this._vA.z > -1 && this._vA.z < 1) {
+                                const sx = (this._vA.x + 1) * halfW;
+                                const sy = (-this._vA.y + 1) * halfH;
+                                const sz = (i % 6 === 0) ? 2.2 : 1.3;
+                                ctx.fillRect(sx, sy, sz, sz);
+                            }
+                        }
+                        return;
+                    }
+
+                    // Collect soft ground drop-shadow positions for each chess piece root
+                    if (obj.userData && obj.userData.square && obj.userData.bodyGroup) {
+                        this._vA.setFromMatrixPosition(obj.matrixWorld);
+                        pieceShadowAnchors.push(this._vA.clone());
+                    }
+
+                    if (!obj.isMesh || !obj.geometry || !obj.material) return;
+                    const mat = obj.material;
+                    if (mat.transparent && mat.opacity <= 0.02) return;
+
+                    // Determine which render pass this mesh belongs to
+                    let passIndex = 2;
+                    if (obj.userData && obj.userData.renderPass !== undefined) {
+                        passIndex = obj.userData.renderPass;
+                    } else if (obj.parent && obj.parent.userData && obj.parent.userData.renderPass !== undefined) {
+                        passIndex = obj.parent.userData.renderPass;
+                    }
+
+                    const geo = obj.geometry;
+                    const pos = geo.attributes.position;
+                    if (!pos) return;
+
+                    const index = geo.index;
+                    const worldMat = obj.matrixWorld;
+                    const baseColor = mat.color ? mat.color : new THREE.Color(0xffffff);
+                    const emissive = mat.emissive ? mat.emissive : null;
+                    const isEmissiveGlow = mat.isMeshBasicMaterial || (emissive && (emissive.r + emissive.g + emissive.b > 0.25));
+                    const roughness = mat.roughness !== undefined ? mat.roughness : 0.3;
+                    const metalness = mat.metalness !== undefined ? mat.metalness : 0.1;
+                    const alpha = mat.transparent ? (mat.opacity !== undefined ? mat.opacity : 1.0) : 1.0;
+                    const isTileTop = Boolean(obj.userData && obj.userData.isTile);
+
+                    const pushTriangle = (i0, i1, i2) => {
+                        this._wA.fromBufferAttribute(pos, i0).applyMatrix4(worldMat);
+                        this._wB.fromBufferAttribute(pos, i1).applyMatrix4(worldMat);
+                        this._wC.fromBufferAttribute(pos, i2).applyMatrix4(worldMat);
+
+                        // Face normal in world space
+                        this._edge1.subVectors(this._wB, this._wA);
+                        this._edge2.subVectors(this._wC, this._wA);
+                        this._normal.crossVectors(this._edge1, this._edge2);
+                        const areaSq = this._normal.lengthSq();
+                        if (areaSq < 1e-8) return;
+                        this._normal.multiplyScalar(1 / Math.sqrt(areaSq));
+
+                        // Centroid in world space
+                        this._centroid.copy(this._wA).add(this._wB).add(this._wC).multiplyScalar(0.333333);
+
+                        // View vector from centroid to camera
+                        this._viewDir.subVectors(camPos, this._centroid);
+                        const camDistSq = this._viewDir.lengthSq();
+                        const camDist = Math.sqrt(camDistSq);
+                        this._viewDir.multiplyScalar(1 / (camDist || 1));
+
+                        // Backface culling
+                        if (mat.side !== THREE.DoubleSide) {
+                            if (this._normal.dot(this._viewDir) < -0.05) return;
+                        }
+
+                        // Project vertices to clip space
+                        this._vA.copy(this._wA).applyMatrix4(this._projScreenMatrix);
+                        this._vB.copy(this._wB).applyMatrix4(this._projScreenMatrix);
+                        this._vC.copy(this._wC).applyMatrix4(this._projScreenMatrix);
+
+                        if (this._vA.z < -1 || this._vA.z > 1 || this._vB.z < -1 || this._vB.z > 1 || this._vC.z < -1 || this._vC.z > 1) return;
+
+                        let r = baseColor.r, g = baseColor.g, b = baseColor.b;
+
+                        if (!isEmissiveGlow) {
+                            // Blinn-Phong + Hemisphere + Dual Faction Rim Shading
+                            const nDotKey = Math.max(0, this._normal.dot(this._keyLight));
+                            const nDotFill = Math.max(0, this._normal.dot(this._fillLight));
+                            const nDotBack = Math.max(0, this._normal.dot(this._backLight));
+                            const hemiFactor = this._normal.y * 0.5 + 0.5;
+
+                            // Ambient + Hemisphere sky/ground blend
+                            const ambient = 0.34 + hemiFactor * 0.24;
+                            const diffuse = nDotKey * 0.72 + nDotFill * 0.22 + nDotBack * 0.18;
+
+                            // Specular highlight (Blinn-Phong half-vector)
+                            this._halfVec.addVectors(this._keyLight, this._viewDir).normalize();
+                            const nDotH = Math.max(0, this._normal.dot(this._halfVec));
+                            const shininess = Math.max(8, (1.0 - roughness) * 96);
+                            const specStrength = (1.0 - roughness * 0.75) * (0.35 + metalness * 0.65);
+                            const spec = Math.pow(nDotH, shininess) * specStrength;
+
+                            // Fresnel rim highlight for sculpted stone depth
+                            const fresnel = Math.pow(1.0 - Math.max(0, this._normal.dot(this._viewDir)), 3) * 0.22;
+
+                            const lightMul = ambient + diffuse;
+                            r = Math.min(1, r * lightMul + spec * 0.95 + fresnel * (0.65 + nDotFill * 0.35));
+                            g = Math.min(1, g * lightMul + spec * 0.96 + fresnel * (0.75 + nDotFill * 0.25));
+                            b = Math.min(1, b * lightMul + spec * 1.00 + fresnel * (0.95));
+                        } else if (emissive) {
+                            r = Math.min(1, r * 0.45 + emissive.r * 0.95);
+                            g = Math.min(1, g * 0.45 + emissive.g * 0.95);
+                            b = Math.min(1, b * 0.45 + emissive.b * 0.95);
+                        }
+
+                        const ri = (r * 255) | 0;
+                        const gi = (g * 255) | 0;
+                        const bi = (b * 255) | 0;
+                        const fillStyle = alpha < 0.99
+                            ? `rgba(${ri},${gi},${bi},${alpha.toFixed(2)})`
+                            : `rgb(${ri},${gi},${bi})`;
+
+                        const triData = {
+                            x1: (this._vA.x + 1) * halfW,
+                            y1: (-this._vA.y + 1) * halfH,
+                            x2: (this._vB.x + 1) * halfW,
+                            y2: (-this._vB.y + 1) * halfH,
+                            x3: (this._vC.x + 1) * halfW,
+                            y3: (-this._vC.y + 1) * halfH,
+                            distSq: camDistSq,
+                            fillStyle,
+                            strokeStyle: isTileTop && this._normal.y > 0.8
+                                ? 'rgba(148, 163, 184, 0.28)'
+                                : fillStyle,
+                            lineWidth: isTileTop && this._normal.y > 0.8 ? 1.1 : 0.55,
+                            isEmissiveGlow
+                        };
+
+                        passBuckets[passIndex].push(triData);
+
+                        if (isEmissiveGlow && passIndex === 2) {
+                            glowOverlays.push(triData);
+                        }
+                    };
+
+                    if (index) {
+                        const arr = index.array;
+                        for (let i = 0; i < arr.length; i += 3) {
+                            pushTriangle(arr[i], arr[i + 1], arr[i + 2]);
+                        }
+                    } else {
+                        for (let i = 0; i < pos.count; i += 3) {
+                            pushTriangle(i, i + 1, i + 2);
+                        }
+                    }
+                });
+
+                ctx.lineJoin = 'round';
+
+                // Render Pass 0 (Frame) & Pass 1 (64 Board Tiles & Highlights)
+                for (let p = 0; p <= 1; p++) {
+                    const bucket = passBuckets[p];
+                    bucket.sort((a, b) => b.distSq - a.distSq);
+                    for (let i = 0; i < bucket.length; i++) {
+                        const t = bucket[i];
+                        ctx.fillStyle = t.fillStyle;
+                        ctx.strokeStyle = t.strokeStyle;
+                        ctx.lineWidth = t.lineWidth;
+                        ctx.beginPath();
+                        ctx.moveTo(t.x1, t.y1);
+                        ctx.lineTo(t.x2, t.y2);
+                        ctx.lineTo(t.x3, t.y3);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                }
+
+                // Render Soft Ground Contact Shadows under all 32 Pieces before drawing Pass 2
+                for (let i = 0; i < pieceShadowAnchors.length; i++) {
+                    const anchor = pieceShadowAnchors[i];
+                    const pCenter = this.projectPoint(new THREE.Vector3(anchor.x, 0.02, anchor.z), halfW, halfH);
+                    const pEdge = this.projectPoint(new THREE.Vector3(anchor.x + 0.88, 0.02, anchor.z), halfW, halfH);
+                    if (pCenter.visible) {
+                        const rad = Math.max(6, Math.hypot(pEdge.x - pCenter.x, pEdge.y - pCenter.y));
+                        const shGrad = ctx.createRadialGradient(pCenter.x, pCenter.y, rad * 0.1, pCenter.x, pCenter.y, rad);
+                        shGrad.addColorStop(0, 'rgba(2, 6, 23, 0.72)');
+                        shGrad.addColorStop(0.65, 'rgba(2, 6, 23, 0.32)');
+                        shGrad.addColorStop(1, 'rgba(2, 6, 23, 0)');
+                        ctx.fillStyle = shGrad;
+                        ctx.beginPath();
+                        ctx.ellipse(pCenter.x, pCenter.y, rad, rad * 0.62, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+
+                // Render Pass 2 (32 Sculpted Marble & Obsidian Pieces + Shards)
+                const pieceBucket = passBuckets[2];
+                pieceBucket.sort((a, b) => b.distSq - a.distSq);
+                for (let i = 0; i < pieceBucket.length; i++) {
+                    const t = pieceBucket[i];
+                    ctx.fillStyle = t.fillStyle;
+                    ctx.strokeStyle = t.strokeStyle;
+                    ctx.lineWidth = t.lineWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(t.x1, t.y1);
+                    ctx.lineTo(t.x2, t.y2);
+                    ctx.lineTo(t.x3, t.y3);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                // Additive Bloom Pass for Lightsabers, Blaster Bolts & Holotable Rings
+                if (glowOverlays.length > 0) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = 0.28;
+                    for (let i = 0; i < glowOverlays.length; i++) {
+                        const t = glowOverlays[i];
+                        ctx.strokeStyle = t.fillStyle;
+                        ctx.lineWidth = 4.5 * this.pixelRatio;
+                        ctx.beginPath();
+                        ctx.moveTo(t.x1, t.y1);
+                        ctx.lineTo(t.x2, t.y2);
+                        ctx.lineTo(t.x3, t.y3);
+                        ctx.closePath();
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+            }
+        }
+
+        function createResilientRenderer(width, height) {
+            // Tier 1: Direct THREE.WebGLRenderer (supports WebGL2 & WebGL1 natively)
+            const webglConfigs = [
+                { antialias: true, alpha: false, powerPreference: 'high-performance' },
+                { antialias: true, alpha: false },
+                { antialias: false, alpha: false, failIfMajorPerformanceCaveat: false }
+            ];
+
+            for (const cfg of webglConfigs) {
+                try {
+                    const webglRenderer = new THREE.WebGLRenderer(cfg);
+                    if (webglRenderer && webglRenderer.getContext()) {
+                        webglRenderer.setSize(width, height);
+                        webglRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                        webglRenderer.shadowMap.enabled = true;
+                        webglRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                        webglRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+                        webglRenderer.toneMappingExposure = 1.15;
+                        return { renderer: webglRenderer, isFallback: false };
+                    }
+                } catch (e) {
+                    // Continue to next configuration
+                }
+            }
+
+            // Tier 2: High-Definition Blinn-Phong 3D Software Renderer
+            const hdFallback = new HighDefCanvas3DRenderer(width, height);
+            hdFallback.setPixelRatio(window.devicePixelRatio || 1);
+            return { renderer: hdFallback, isFallback: true };
+        }
+
+        /***********************************************************************
+         * 5. PROCEDURAL MARBLE & OBSIDIAN TEXTURE GENERATOR
+         ***********************************************************************/
+        function createProceduralStoneTexture(isMarble) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = isMarble ? '#f8fafc' : '#181c28';
+            ctx.fillRect(0, 0, 512, 512);
+
+            const veinCount = isMarble ? 28 : 36;
+            for (let i = 0; i < veinCount; i++) {
+                ctx.beginPath();
+                let x = Math.random() * 512;
+                let y = Math.random() * 512;
+                ctx.moveTo(x, y);
+                const steps = 12 + Math.floor(Math.random() * 14);
+                for (let s = 0; s < steps; s++) {
+                    x += (Math.random() - 0.5) * 90;
+                    y += (Math.random() - 0.5) * 90;
+                    ctx.lineTo(x, y);
+                }
+                if (isMarble) {
+                    ctx.strokeStyle = i % 4 === 0
+                        ? 'rgba(148, 163, 184, 0.42)'
+                        : 'rgba(100, 116, 139, 0.25)';
+                    ctx.lineWidth = 1 + Math.random() * 3.5;
+                } else {
+                    ctx.strokeStyle = i % 4 === 0
+                        ? 'rgba(244, 63, 94, 0.38)'
+                        : 'rgba(71, 85, 105, 0.4)';
+                    ctx.lineWidth = 1 + Math.random() * 2.5;
+                }
+                ctx.stroke();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        const marbleTexture = createProceduralStoneTexture(true);
+        const obsidianTexture = createProceduralStoneTexture(false);
+
+        const MARBLE_MATERIAL = new THREE.MeshStandardMaterial({
+            color: 0xf1f5f9,
+            map: marbleTexture,
+            roughness: 0.22,
+            metalness: 0.08
+        });
+
+        const MARBLE_GOLD_ACCENT = new THREE.MeshStandardMaterial({
+            color: 0xfbbf24,
+            roughness: 0.22,
+            metalness: 0.78
+        });
+
+        const OBSIDIAN_MATERIAL = new THREE.MeshStandardMaterial({
+            color: 0x334155,
+            map: obsidianTexture,
+            roughness: 0.14,
+            metalness: 0.52
+        });
+
+        const OBSIDIAN_DARK_TRIM = new THREE.MeshStandardMaterial({
+            color: 0x9f1239,
+            roughness: 0.20,
+            metalness: 0.68
+        });
+
+        /***********************************************************************
+         * 6. HIGH-RESOLUTION 3D STAR WARS SCULPTED PIECE FACTORY (32 PIECES)
+         ***********************************************************************/
+        const SQUARE_SIZE = 2.1;
+        const BOARD_OFFSET = (8 * SQUARE_SIZE) / 2 - SQUARE_SIZE / 2;
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+
+        const initWidth = container.clientWidth || window.innerWidth || 1024;
+        const initHeight = container.clientHeight || window.innerHeight || 768;
+
+        const camera = new THREE.PerspectiveCamera(40, initWidth / initHeight, 0.1, 250);
+        const { renderer, isFallback: USING_SOFTWARE_3D } = createResilientRenderer(initWidth, initHeight);
+        container.appendChild(renderer.domElement);
+
+        // High-resolution radial segment counts for smooth silhouettes in both WebGL & HD Software 3D
+        const SEG_HI = USING_SOFTWARE_3D ? 18 : 28;
+        const SEG_MD = USING_SOFTWARE_3D ? 14 : 22;
+        const SEG_LO = USING_SOFTWARE_3D ? 10 : 16;
+
+        // Helper to build smooth LatheGeometry robes/armors from 2D [radius, height] profile points
+        function createSculptedLathe(profilePairs, segments = SEG_HI) {
+            const pts = profilePairs.map(([r, y]) => new THREE.Vector2(r, y));
+            const geo = new THREE.LatheGeometry(pts, segments);
+            geo.computeVertexNormals();
+            return geo;
+        }
+
+        function squareToWorld(squareStr) {
+            const file = squareStr.charCodeAt(0) - 97;
+            const rank = 8 - parseInt(squareStr[1], 10);
+            return new THREE.Vector3(
+                file * SQUARE_SIZE - BOARD_OFFSET,
+                0,
+                rank * SQUARE_SIZE - BOARD_OFFSET
+            );
+        }
+
+        function createCharacterPieceMesh(type, color) {
+            const isLight = color === 'w';
+            const stoneMat = isLight ? MARBLE_MATERIAL : OBSIDIAN_MATERIAL;
+            const trimMat = isLight ? MARBLE_GOLD_ACCENT : OBSIDIAN_DARK_TRIM;
+            const charData = STAR_WARS_ROSTER[color][type];
+
+            const glowMat = new THREE.MeshStandardMaterial({
+                color: charData.saberColor,
+                emissive: charData.saberColor,
+                emissiveIntensity: 2.2,
+                roughness: 0.1
+            });
+
+            // White core blade for authentic lightsaber look
+            const saberCoreMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff
+            });
+
+            const rootGroup = new THREE.Group();
+            rootGroup.userData.renderPass = 2;
+            const bodyGroup = new THREE.Group();
+            rootGroup.add(bodyGroup);
+
+            // 1. Multi-Tiered Sculpted Classical Chess Pedestal Base
+            const pedestalGeo = createSculptedLathe([
+                [0.0, 0.0],
+                [0.86, 0.0],
+                [0.84, 0.10],
+                [0.72, 0.16],
+                [0.76, 0.24],
+                [0.64, 0.32],
+                [0.54, 0.36]
+            ], SEG_HI);
+            const baseMesh = new THREE.Mesh(pedestalGeo, stoneMat);
+            baseMesh.castShadow = true;
+            baseMesh.receiveShadow = true;
+            rootGroup.add(baseMesh);
+
+            // Metallic Trim Collar on Pedestal
+            const collarGeo = new THREE.CylinderGeometry(0.68, 0.72, 0.06, SEG_HI);
+            const collarMesh = new THREE.Mesh(collarGeo, trimMat);
+            collarMesh.position.y = 0.26;
+            rootGroup.add(collarMesh);
+
+            // Faction Holotable Glow Ring
+            const ringGeo = new THREE.TorusGeometry(0.80, 0.038, 8, SEG_HI);
+            const ringMesh = new THREE.Mesh(ringGeo, glowMat);
+            ringMesh.rotation.x = Math.PI / 2;
+            ringMesh.position.y = 0.15;
+            rootGroup.add(ringMesh);
+
+            const weaponPivot = new THREE.Group();
+
+            // Helper for creating a glowing Lightsaber with hilt + outer plasma + inner core
+            const buildLightsaber = (bladeLen = 1.15, isDouble = false) => {
+                const saberGroup = new THREE.Group();
+                const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.34, SEG_LO), trimMat);
+                const emitter = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.05, 0.07, SEG_LO), stoneMat);
+                emitter.position.y = 0.16;
+                saberGroup.add(hilt, emitter);
+
+                const bladeOuter = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.042, bladeLen, SEG_LO), glowMat);
+                bladeOuter.position.y = 0.18 + bladeLen * 0.5;
+                const bladeTip = new THREE.Mesh(new THREE.SphereGeometry(0.03, SEG_LO, SEG_LO), saberCoreMat);
+                bladeTip.position.y = 0.18 + bladeLen;
+                saberGroup.add(bladeOuter, bladeTip);
+
+                if (isDouble) {
+                    const botOuter = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.028, bladeLen * 0.85, SEG_LO), glowMat);
+                    botOuter.position.y = -(0.18 + bladeLen * 0.425);
+                    saberGroup.add(botOuter);
+                }
+                return saberGroup;
+            };
+
+            // 2. Sculpt Specific Star Wars Character Archetype
+            if (type === 'p') {
+                // Sculpted Trooper Armor Torso & Pauldrons
+                const armorGeo = createSculptedLathe([
+                    [0.52, 0.34],
+                    [0.44, 0.58],
+                    [0.36, 0.85],
+                    [0.46, 1.12],
+                    [0.32, 1.26],
+                    [0.18, 1.32]
+                ], SEG_MD);
+                const torso = new THREE.Mesh(armorGeo, stoneMat);
+                torso.castShadow = true;
+                bodyGroup.add(torso);
+
+                // Sculpted Chestplate & Utility Belt
+                const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.40, 0.10, SEG_MD), trimMat);
+                belt.position.y = 0.78;
+                bodyGroup.add(belt);
+
+                const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.34, 0.36), trimMat);
+                chestPlate.position.set(0, 1.06, 0.06);
+                bodyGroup.add(chestPlate);
+
+                // Shoulder Pauldrons
+                [-0.36, 0.36].forEach(xOff => {
+                    const pauldron = new THREE.Mesh(new THREE.SphereGeometry(0.16, SEG_LO, SEG_LO), stoneMat);
+                    pauldron.scale.set(0.85, 1.1, 1.0);
+                    pauldron.position.set(xOff, 1.12, 0);
+                    bodyGroup.add(pauldron);
+                });
+
+                // Sculpted Helmet
+                const helmDome = new THREE.Mesh(new THREE.SphereGeometry(0.29, SEG_MD, SEG_MD), stoneMat);
+                helmDome.position.y = 1.50;
+                helmDome.castShadow = true;
+                bodyGroup.add(helmDome);
+
+                if (isLight) {
+                    // Rebel Fleet Trooper Curved Blast Helmet Rim & Chinstrap
+                    const rebelBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.16, SEG_MD), trimMat);
+                    rebelBrim.rotation.x = -0.22;
+                    rebelBrim.position.set(0, 1.56, -0.03);
+                    const visorShield = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.10, 0.24), glowMat);
+                    visorShield.position.set(0, 1.52, 0.16);
+                    bodyGroup.add(rebelBrim, visorShield);
+                } else {
+                    // Stormtrooper Vokoff-style Vocoder Chin & Lenses
+                    const jawline = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.31, 0.22, SEG_MD), stoneMat);
+                    jawline.position.set(0, 1.38, 0.05);
+                    const opticalVisor = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.08, 0.22), glowMat);
+                    opticalVisor.position.set(0, 1.50, 0.18);
+                    bodyGroup.add(jawline, opticalVisor);
+                }
+
+                weaponPivot.position.set(0.36, 1.02, 0.14);
+                const rifleBody = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.62), trimMat);
+                rifleBody.position.z = 0.20;
+                const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.42, SEG_LO), stoneMat);
+                barrel.rotation.x = Math.PI / 2;
+                barrel.position.set(0, 0.03, 0.48);
+                const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), glowMat);
+                muzzle.position.set(0, 0.03, 0.70);
+                weaponPivot.add(rifleBody, barrel, muzzle);
+                bodyGroup.add(weaponPivot);
+
+            } else if (type === 'r') {
+                if (isLight) {
+                    // R2-D2 Sculpted Astromech Chassis & Domed Head
+                    const chassis = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.43, 0.98, SEG_HI), stoneMat);
+                    chassis.position.y = 0.90;
+                    chassis.castShadow = true;
+                    bodyGroup.add(chassis);
+
+                    // Vent Bands
+                    [0.68, 1.12].forEach(yPos => {
+                        const band = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.06, SEG_HI), trimMat);
+                        band.position.y = yPos;
+                        bodyGroup.add(band);
+                    });
+
+                    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.45, SEG_HI, SEG_MD, 0, Math.PI * 2, 0, Math.PI * 0.52), trimMat);
+                    dome.position.y = 1.38;
+                    bodyGroup.add(dome);
+
+                    const holoLens = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.12, SEG_LO), glowMat);
+                    holoLens.rotation.x = Math.PI / 2;
+                    holoLens.position.set(0, 1.58, 0.41);
+                    bodyGroup.add(holoLens);
+
+                    // Sculpted Strut Legs & Treads
+                    [-0.48, 0.48].forEach(xOff => {
+                        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.88, 0.28), stoneMat);
+                        strut.position.set(xOff, 0.82, 0);
+                        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.18, 0.46), trimMat);
+                        foot.position.set(xOff, 0.42, 0.04);
+                        bodyGroup.add(strut, foot);
+                    });
+
+                    weaponPivot.position.set(0, 1.14, 0.44);
+                    const arcArm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.38, SEG_LO), glowMat);
+                    arcArm.rotation.x = Math.PI / 2;
+                    weaponPivot.add(arcArm);
+                    bodyGroup.add(weaponPivot);
+                } else {
+                    // Imperial TIE Turret Tower & Hexagonal Solar Wings
+                    const towerGeo = createSculptedLathe([
+                        [0.54, 0.34],
+                        [0.42, 0.75],
+                        [0.32, 1.25],
+                        [0.38, 1.45]
+                    ], SEG_MD);
+                    const spire = new THREE.Mesh(towerGeo, stoneMat);
+                    spire.castShadow = true;
+                    bodyGroup.add(spire);
+
+                    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.36, SEG_HI, SEG_MD), stoneMat);
+                    cockpit.position.y = 1.56;
+                    const viewport = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.12, 8), glowMat);
+                    viewport.rotation.x = Math.PI / 2;
+                    viewport.position.set(0, 1.56, 0.32);
+                    bodyGroup.add(cockpit, viewport);
+
+                    // Wing Pylons & Hexagonal Solar Panels
+                    constaxle = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.16, SEG_LO), trimMat);
+                    constaxle.rotation.z = Math.PI / 2;
+                    constaxle.position.y = 1.56;
+                    bodyGroup.add(constaxle);
+
+                    [-0.58, 0.58].forEach(xOff => {
+                        const panel = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 6), trimMat);
+                        panel.rotation.z = Math.PI / 2;
+                        panel.scale.set(1, 1, 0.72);
+                        panel.position.set(xOff, 1.56, 0);
+                        bodyGroup.add(panel);
+                    });
+
+                    weaponPivot.position.set(0, 1.38, 0.34);
+                    [-0.10, 0.10].forEach(xOff => {
+                        const cannon = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.36, 8), glowMat);
+                        cannon.rotation.x = Math.PI / 2;
+                        cannon.position.x = xOff;
+                        weaponPivot.add(cannon);
+                    });
+                    bodyGroup.add(weaponPivot);
+                }
+
+            } else if (type === 'n') {
+                // Sculpted Muscular/Armored Warrior Body (Chewbacca vs Boba Fett)
+                const knightGeo = createSculptedLathe([
+                    [0.54, 0.34],
+                    [0.48, 0.68],
+                    [0.40, 1.05],
+                    [0.48, 1.38],
+                    [0.34, 1.54],
+                    [0.20, 1.60]
+                ], SEG_HI);
+                const torso = new THREE.Mesh(knightGeo, stoneMat);
+                torso.castShadow = true;
+                bodyGroup.add(torso);
+
+                if (isLight) {
+                    // Chewbacca Sculpted Fur Mantle, Bandolier & Bowcaster
+                    const mane = new THREE.Mesh(new THREE.SphereGeometry(0.36, SEG_HI, SEG_MD), stoneMat);
+                    mane.scale.set(1.0, 1.18, 1.05);
+                    mane.position.y = 1.74;
+                    bodyGroup.add(mane);
+
+                    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.30), trimMat);
+                    brow.position.set(0, 1.82, 0.14);
+                    bodyGroup.add(brow);
+
+                    const bandolier = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.065, 8, SEG_HI), trimMat);
+                    bandolier.rotation.y = Math.PI / 4;
+                    bandolier.rotation.x = Math.PI / 3;
+                    bandolier.position.y = 1.12;
+                    bodyGroup.add(bandolier);
+
+                    weaponPivot.position.set(0.40, 1.18, 0.18);
+                    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.13, 0.76), trimMat);
+                    const bowLimb = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 6, SEG_MD, Math.PI), glowMat);
+                    bowLimb.rotation.x = Math.PI / 2;
+                    bowLimb.position.z = 0.25;
+                    const polarizers = [-0.34, 0.34].map(x => {
+                        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), glowMat);
+                        orb.position.set(x, 0, 0.25);
+                        return orb;
+                    });
+                    weaponPivot.add(stock, bowLimb, ...polarizers);
+                    bodyGroup.add(weaponPivot);
+                } else {
+                    // Boba Fett Mandalorian Bucket Helmet, T-Visor, Rangefinder & Jetpack
+                    const mandoHelm = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.33, 0.36, SEG_HI), stoneMat);
+                    mandoHelm.position.y = 1.72;
+                    const mandoDome = new THREE.Mesh(new THREE.SphereGeometry(0.30, SEG_HI, SEG_MD, 0, Math.PI * 2, 0, Math.PI * 0.5), stoneMat);
+                    mandoDome.position.y = 1.90;
+                    bodyGroup.add(mandoHelm, mandoDome);
+
+                    const tVisor = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.10, 0.24), glowMat);
+                    tVisor.position.set(0, 1.78, 0.16);
+                    const tVert = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.26, 0.24), glowMat);
+                    tVert.position.set(0, 1.70, 0.16);
+                    bodyGroup.add(tVisor, tVert);
+
+                    const rangefinder = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.38, 6), trimMat);
+                    rangefinder.position.set(0.34, 1.96, 0);
+                    bodyGroup.add(rangefinder);
+
+                    // Z-6 Jetpack with Thruster Cones
+                    const packBody = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.56, 0.26), trimMat);
+                    packBody.position.set(0, 1.18, -0.32);
+                    const missile = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 8), stoneMat);
+                    missile.position.set(0, 1.58, -0.32);
+                    bodyGroup.add(packBody, missile);
+
+                    weaponPivot.position.set(0.40, 1.18, 0.20);
+                    const carbine = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, 0.74, SEG_LO), trimMat);
+                    carbine.rotation.x = Math.PI / 2;
+                    carbine.position.z = 0.26;
+                    const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), glowMat);
+                    tipGlow.position.z = 0.64;
+                    weaponPivot.add(carbine, tipGlow);
+                    bodyGroup.add(weaponPivot);
+                }
+
+            } else if (type === 'b') {
+                // Sculpted Flowing Jedi / Sith Tunic & Cloak
+                const bishopGeo = createSculptedLathe([
+                    [0.56, 0.34],
+                    [0.50, 0.65],
+                    [0.38, 1.10],
+                    [0.44, 1.48],
+                    [0.30, 1.66],
+                    [0.18, 1.72]
+                ], SEG_HI);
+                const robe = new THREE.Mesh(bishopGeo, stoneMat);
+                robe.castShadow = true;
+                bodyGroup.add(robe);
+
+                const tabard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.05, 0.42), trimMat);
+                tabard.position.set(0, 0.98, 0.04);
+                bodyGroup.add(tabard);
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, SEG_HI, SEG_MD), stoneMat);
+                head.position.y = 1.90;
+                bodyGroup.add(head);
+
+                if (isLight) {
+                    // Obi-Wan Sculpted Jedi Hood & Mantle
+                    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.35, SEG_HI, SEG_MD, 0, Math.PI * 2, 0, Math.PI * 0.68), trimMat);
+                    hood.rotation.x = -0.32;
+                    hood.position.set(0, 1.92, -0.04);
+                    bodyGroup.add(hood);
+
+                    weaponPivot.position.set(0.44, 1.22, 0.20);
+                    const saber = buildLightsaber(1.18, false);
+                    weaponPivot.add(saber);
+                    weaponPivot.rotation.set(0.22, 0, -0.14);
+                    bodyGroup.add(weaponPivot);
+                } else {
+                    // Darth Maul Zabrak Crown of Horns & Dual-Bladed Saberstaff
+                    for (let h = 0; h < 8; h++) {
+                        const angle = (h / 8) * Math.PI * 2;
+                        const horn = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.19, 8), trimMat);
+                        horn.position.set(Math.cos(angle) * 0.24, 2.12, Math.sin(angle) * 0.24);
+                        horn.rotation.z = -Math.cos(angle) * 0.35;
+                        horn.rotation.x = Math.sin(angle) * 0.35;
+                        bodyGroup.add(horn);
+                    }
+
+                    const sithEyes = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.06, 0.20), glowMat);
+                    sithEyes.position.set(0, 1.92, 0.16);
+                    bodyGroup.add(sithEyes);
+
+                    weaponPivot.position.set(0.44, 1.24, 0.24);
+                    const dualSaber = buildLightsaber(0.95, true);
+                    weaponPivot.add(dualSaber);
+                    weaponPivot.rotation.set(0.28, 0, Math.PI / 5);
+                    bodyGroup.add(weaponPivot);
+                }
+
+            } else if (type === 'q') {
+                // Sculpted Regal Queen Silhouette (Rey Skywalker vs Darth Vader)
+                const queenGeo = createSculptedLathe([
+                    [0.60, 0.34],
+                    [0.52, 0.75],
+                    [0.36, 1.28],
+                    [0.44, 1.68],
+                    [0.32, 1.88],
+                    [0.18, 1.94]
+                ], SEG_HI);
+                const gown = new THREE.Mesh(queenGeo, stoneMat);
+                gown.castShadow = true;
+                bodyGroup.add(gown);
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.30, SEG_HI, SEG_MD), stoneMat);
+                head.position.y = 2.14;
+                bodyGroup.add(head);
+
+                if (isLight) {
+                    // Rey Skywalker Crossed Scavenger Wraps & Golden Crown Circlet
+                    const sashA = new THREE.Mesh(new THREE.TorusGeometry(0.39, 0.055, 8, SEG_HI), trimMat);
+                    sashA.rotation.set(Math.PI / 2.5, 0.35, 0);
+                    sashA.position.y = 1.45;
+                    const sashB = new THREE.Mesh(new THREE.TorusGeometry(0.39, 0.055, 8, SEG_HI), trimMat);
+                    sashB.rotation.set(Math.PI / 2.5, -0.35, 0);
+                    sashB.position.y = 1.45;
+                    const circlet = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 8, SEG_HI), trimMat);
+                    circlet.rotation.x = Math.PI / 2;
+                    circlet.position.y = 2.28;
+                    bodyGroup.add(sashA, sashB, circlet);
+                } else {
+                    // Darth Vader Iconic Flared Helmet, Respirator Mask, Cape & Life-Support Chestplate
+                    const cape = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.36, 0.64, 1.55, SEG_HI, 1, true, Math.PI * 0.55, Math.PI * 0.9),
+                        trimMat
+                    );
+                    cape.material.side = THREE.DoubleSide;
+                    cape.position.set(0, 1.12, -0.06);
+                    bodyGroup.add(cape);
+
+                    const helmFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.46, 0.38, SEG_HI), stoneMat);
+                    helmFlange.position.y = 2.10;
+                    const maskTri = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.24, 4), trimMat);
+                    maskTri.rotation.x = Math.PI / 2;
+                    maskTri.position.set(0, 2.06, 0.26);
+                    const chestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.14), glowMat);
+                    chestPanel.position.set(0, 1.54, 0.34);
+                    bodyGroup.add(helmFlange, maskTri, chestPanel);
+                }
+
+                weaponPivot.position.set(0.48, 1.38, 0.22);
+                const queenSaber = buildLightsaber(1.26, false);
+                weaponPivot.add(queenSaber);
+                weaponPivot.rotation.x = 0.18;
+                bodyGroup.add(weaponPivot);
+
+            } else if (type === 'k') {
+                if (isLight) {
+                    // Grand Master Yoda on Hovering Jedi High Council Repulsor Throne
+                    const podGeo = createSculptedLathe([
+                        [0.18, 0.42],
+                        [0.54, 0.52],
+                        [0.64, 0.72],
+                        [0.58, 0.92],
+                        [0.42, 0.96]
+                    ], SEG_HI);
+                    const councilPod = new THREE.Mesh(podGeo, trimMat);
+                    councilPod.castShadow = true;
+                    bodyGroup.add(councilPod);
+
+                    const hoverRing = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.032, 8, SEG_HI), glowMat);
+                    hoverRing.rotation.x = Math.PI / 2;
+                    hoverRing.position.y = 0.46;
+                    bodyGroup.add(hoverRing);
+
+                    const yodaRobeGeo = createSculptedLathe([
+                        [0.40, 0.92],
+                        [0.36, 1.25],
+                        [0.28, 1.54],
+                        [0.16, 1.62]
+                    ], SEG_MD);
+                    const yodaRobe = new THREE.Mesh(yodaRobeGeo, stoneMat);
+                    yodaRobe.castShadow = true;
+                    bodyGroup.add(yodaRobe);
+
+                    const yodaHead = new THREE.Mesh(new THREE.SphereGeometry(0.26, SEG_HI, SEG_MD), stoneMat);
+                    yodaHead.position.y = 1.78;
+                    bodyGroup.add(yodaHead);
+
+                    [-1, 1].forEach(dir => {
+                        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.44, SEG_LO), stoneMat);
+                        ear.rotation.z = dir * (Math.PI / 2.15);
+                        ear.position.set(dir * 0.39, 1.79, 0);
+                        bodyGroup.add(ear);
+                    });
+
+                    weaponPivot.position.set(0.38, 1.32, 0.22);
+                    const yodaSaber = buildLightsaber(0.88, false);
+                    weaponPivot.add(yodaSaber);
+                    weaponPivot.rotation.x = 0.22;
+                    bodyGroup.add(weaponPivot);
+
+                } else {
+                    // Emperor Palpatine in High-Collared Sith Throne Robes & Force Lightning Crown
+                    const empGeo = createSculptedLathe([
+                        [0.64, 0.34],
+                        [0.54, 0.82],
+                        [0.40, 1.38],
+                        [0.48, 1.82],
+                        [0.36, 2.02],
+                        [0.20, 2.08]
+                    ], SEG_HI);
+                    const throneRobe = new THREE.Mesh(empGeo, stoneMat);
+                    throneRobe.castShadow = true;
+                    bodyGroup.add(throneRobe);
+
+                    const cowl = new THREE.Mesh(new THREE.SphereGeometry(0.38, SEG_HI, SEG_MD), stoneMat);
+                    cowl.scale.set(1.0, 1.12, 1.05);
+                    cowl.position.y = 2.22;
+                    bodyGroup.add(cowl);
+
+                    const sithVisage = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 0.22), glowMat);
+                    sithVisage.position.set(0, 2.22, 0.20);
+                    bodyGroup.add(sithVisage);
+
+                    // Sith Exegol Throne Spires
+                    for (let i = -2; i <= 2; i++) {
+                        const h = 0.48 - Math.abs(i) * 0.08;
+                        const spire = new THREE.Mesh(new THREE.ConeGeometry(0.055, h, 8), glowMat);
+                        spire.position.set(i * 0.14, 2.58 - Math.abs(i) * 0.04, -0.05);
+                        bodyGroup.add(spire);
+                    }
+
+                    weaponPivot.position.set(0, 1.62, 0.40);
+                    const lightningCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), glowMat);
+                    weaponPivot.add(lightningCore);
+                    bodyGroup.add(weaponPivot);
+                }
+            }
+
+            bodyGroup.rotation.y = isLight ? Math.PI : 0;
+
+            rootGroup.userData = {
+                type,
+                color,
+                renderPass: 2,
+                bodyGroup,
+                weaponPivot,
+                ringMesh,
+                charData,
+                idleSeed: Math.random() * Math.PI * 2,
+                baseRotationY: isLight ? Math.PI : 0
+            };
+
+            return rootGroup;
+        }
+
+        /***********************************************************************
+         * 7. THREE.JS SCENE, 64-SQUARE BOARD & LIGHTING SETUP
+         ***********************************************************************/
+        const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 1.1);
+        scene.add(hemiLight);
+
+        const mainSpot = new THREE.DirectionalLight(0xffffff, 1.35);
+        mainSpot.position.set(14, 28, 16);
+        mainSpot.castShadow = true;
+        mainSpot.shadow.mapSize.width = 2048;
+        mainSpot.shadow.mapSize.height = 2048;
+        mainSpot.shadow.camera.near = 5;
+        mainSpot.shadow.camera.far = 65;
+        const d = 13;
+        mainSpot.shadow.camera.left = -d;
+        mainSpot.shadow.camera.right = d;
+        mainSpot.shadow.camera.top = d;
+        mainSpot.shadow.camera.bottom = -d;
+        mainSpot.shadow.bias = -0.0005;
+        scene.add(mainSpot);
+
+        const jediLight = new THREE.PointLight(0x38bdf8, 2.2, 38);
+        jediLight.position.set(0, 8, 15);
+        scene.add(jediLight);
+
+        const sithLight = new THREE.PointLight(0xf43f5e, 2.2, 38);
+        sithLight.position.set(0, 8, -15);
+        scene.add(sithLight);
+
+        function createStarfield() {
+            const starGeo = new THREE.BufferGeometry();
+            const count = 900;
+            const positions = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const r = 45 + Math.random() * 55;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = (Math.random() - 0.2) * 50;
+                positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const starMat = new THREE.PointsMaterial({
+                color: 0xe2e8f0,
+                size: 0.22,
+                transparent: true,
+                opacity: 0.75
+            });
+            scene.add(new THREE.Points(starGeo, starMat));
+        }
+        createStarfield();
+
+        const boardGroup = new THREE.Group();
+        scene.add(boardGroup);
+
+        const squareMeshes = {};
+        const highlightMeshes = {};
+
+        const lightTileMat = new THREE.MeshStandardMaterial({
+            color: 0xf1f5f9,
+            map: marbleTexture,
+            roughness: 0.18,
+            metalness: 0.10
+        });
+
+        const darkTileMat = new THREE.MeshStandardMaterial({
+            color: 0x3b4861,
+            map: obsidianTexture,
+            roughness: 0.16,
+            metalness: 0.48
+        });
+
+        // Segmented 4-Side Perimeter Frame & Glowing Rim (Pass 0) — Never overlaps tile geometry!
+        const boardSpan = 8 * SQUARE_SIZE;
+        const rimThickness = 0.85;
+        const frameMat = new THREE.MeshStandardMaterial({
+            color: 0x111827,
+            roughness: 0.25,
+            metalness: 0.78
+        });
+
+        const borderGlowMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x38bdf8,
+            emissiveIntensity: 0.85
+        });
+
+        const borderGlow = new THREE.Group();
+        borderGlow.userData.renderPass = 0;
+        borderGlow.material = borderGlowMat; // Exposed so updateUIStatus() can tint faction turn color
+
+        const sideOffsets = [
+            { x: 0, z: (boardSpan + rimThickness) / 2, w: boardSpan + rimThickness * 2, d: rimThickness },
+            { x: 0, z: -(boardSpan + rimThickness) / 2, w: boardSpan + rimThickness * 2, d: rimThickness },
+            { x: (boardSpan + rimThickness) / 2, z: 0, w: rimThickness, d: boardSpan },
+            { x: -(boardSpan + rimThickness) / 2, z: 0, w: rimThickness, d: boardSpan }
+        ];
+
+        sideOffsets.forEach(side => {
+            const beamMesh = new THREE.Mesh(new THREE.BoxGeometry(side.w, 0.55, side.d), frameMat);
+            beamMesh.position.set(side.x, -0.26, side.z);
+            beamMesh.userData.renderPass = 0;
+            beamMesh.receiveShadow = true;
+            boardGroup.add(beamMesh);
+
+            const glowStrip = new THREE.Mesh(new THREE.BoxGeometry(side.w * 0.98, 0.10, side.d * 0.35), borderGlowMat);
+            glowStrip.position.set(side.x, 0.02, side.z);
+            glowStrip.userData.renderPass = 0;
+            borderGlow.add(glowStrip);
+        });
+        boardGroup.add(borderGlow);
+
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        for (let r = 0; r < 8; r++) {
+            for (let f = 0; f < 8; f++) {
+                const sqName = `${files[f]}${8 - r}`;
+                const isLightSq = (r + f) % 2 === 0;
+                const tileGeo = new THREE.BoxGeometry(SQUARE_SIZE * 0.96, 0.32, SQUARE_SIZE * 0.96);
+                const tileMesh = new THREE.Mesh(tileGeo, isLightSq ? lightTileMat : darkTileMat);
+
+                const worldPos = squareToWorld(sqName);
+                tileMesh.position.set(worldPos.x, -0.16, worldPos.z);
+                tileMesh.receiveShadow = true;
+                tileMesh.userData = { square: sqName, isTile: true, renderPass: 1 };
+
+                boardGroup.add(tileMesh);
+                squareMeshes[sqName] = tileMesh;
+
+                const hlGroup = new THREE.Group();
+                hlGroup.position.set(worldPos.x, 0.03, worldPos.z);
+                hlGroup.visible = false;
+                hlGroup.userData.renderPass = 1;
+
+                const ringGeo = new THREE.RingGeometry(0.36, 0.62, SEG_HI);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.92
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = -Math.PI / 2;
+                ring.userData.renderPass = 1;
+                hlGroup.add(ring);
+
+                const padGeo = new THREE.PlaneGeometry(SQUARE_SIZE * 0.90, SQUARE_SIZE * 0.90);
+                const padMat = new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.25
+                });
+                const pad = new THREE.Mesh(padGeo, padMat);
+                pad.rotation.x = -Math.PI / 2;
+                pad.userData.renderPass = 1;
+                hlGroup.add(pad);
+
+                hlGroup.userData = { ringMat, padMat, renderPass: 1 };
+                boardGroup.add(hlGroup);
+                highlightMeshes[sqName] = hlGroup;
+            }
+        }
+
+        /***********************************************************************
+         * 8. SHATTER PARTICLE SYSTEM & ENERGY PROJECTILES
+         ***********************************************************************/
+        const activeShards = [];
+        const activeBolts = [];
+
+        function spawnShatterExplosion(worldPos, color) {
+            const isLight = color === 'w';
+            const shardMat = isLight ? MARBLE_MATERIAL : OBSIDIAN_MATERIAL;
+            const coreColor = isLight ? 0x38bdf8 : 0xf43f5e;
+            const glowMat = new THREE.MeshBasicMaterial({ color: coreColor });
+
+            const shardCount = USING_SOFTWARE_3D ? 26 : 44;
+            for (let i = 0; i < shardCount; i++) {
+                const size = 0.14 + Math.random() * 0.25;
+                const geo = i % 3 === 0
+                    ? new THREE.OctahedronGeometry(size, 0)
+                    : new THREE.TetrahedronGeometry(size, 0);
+
+                const mesh = new THREE.Mesh(geo, i % 4 === 0 ? glowMat : shardMat);
+                mesh.position.set(
+                    worldPos.x + (Math.random() - 0.5) * 0.75,
+                    0.35 + Math.random() * 1.45,
+                    worldPos.z + (Math.random() - 0.5) * 0.75
+                );
+                mesh.castShadow = true;
+
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2.4 + Math.random() * 6.0;
+                const velocity = new THREE.Vector3(
+                    Math.cos(angle) * speed,
+                    3.5 + Math.random() * 5.5,
+                    Math.sin(angle) * speed
+                );
+                const rotVel = new THREE.Vector3(
+                    (Math.random() - 0.5) * 15,
+                    (Math.random() - 0.5) * 15,
+                    (Math.random() - 0.5) * 15
+                );
+
+                scene.add(mesh);
+                activeShards.push({
+                    mesh,
+                    velocity,
+                    rotVel,
+                    age: 0,
+                    maxLife: 1.75 + Math.random() * 0.85
+                });
+            }
+
+            const waveGeo = new THREE.RingGeometry(0.22, 0.5, SEG_HI);
+            const waveMat = new THREE.MeshBasicMaterial({
+                color: coreColor,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95
+            });
+            const waveMesh = new THREE.Mesh(waveGeo, waveMat);
+            waveMesh.rotation.x = -Math.PI / 2;
+            waveMesh.position.set(worldPos.x, 0.06, worldPos.z);
+            scene.add(waveMesh);
+            activeBolts.push({
+                type: 'shockwave',
+                mesh: waveMesh,
+                mat: waveMat,
+                age: 0,
+                maxLife: 0.58
+            });
+        }
+
+        function spawnEnergyBolt(fromPos, toPos, colorHex) {
+            const boltGeo = new THREE.CylinderGeometry(0.065, 0.065, 1.15, 8);
+            boltGeo.rotateX(Math.PI / 2);
+            const boltMat = new THREE.MeshBasicMaterial({ color: colorHex });
+            const boltMesh = new THREE.Mesh(boltGeo, boltMat);
+
+            const start = fromPos.clone().add(new THREE.Vector3(0, 1.15, 0));
+            const end = toPos.clone().add(new THREE.Vector3(0, 1.0, 0));
+            boltMesh.position.copy(start);
+            boltMesh.lookAt(end);
+            scene.add(boltMesh);
+
+            activeBolts.push({
+                type: 'bolt',
+                mesh: boltMesh,
+                start,
+                end,
+                age: 0,
+                maxLife: 0.22
+            });
+        }
+
+        /***********************************************************************
+         * 9. CHESS STATE, PIECE REGISTRY & ANIMATION SEQUENCER
+         ***********************************************************************/
+        const chess = new HolochessRulesEngine();
+        const pieceMeshes = {};
+        let selectedSquare = null;
+        let legalMovesForSelected = [];
+        let isAnimatingAction = false;
+        let vsDroidAI = true;
+        let capturedByLight = 0;
+        let capturedByDark = 0;
+
+        function clearAllPiecesFromScene() {
+            Object.keys(pieceMeshes).forEach(sq => {
+                scene.remove(pieceMeshes[sq]);
+                delete pieceMeshes[sq];
+            });
+        }
+
+        function syncPiecesWithBoard() {
+            clearAllPiecesFromScene();
+            const board = chess.board();
+            for (let r = 0; r < 8; r++) {
+                for (let f = 0; f < 8; f++) {
+                    const cell = board[r][f];
+                    if (cell) {
+                        const sq = `${files[f]}${8 - r}`;
+                        const mesh = createCharacterPieceMesh(cell.type, cell.color);
+                        const pos = squareToWorld(sq);
+                        mesh.position.copy(pos);
+                        mesh.userData.square = sq;
+                        scene.add(mesh);
+                        pieceMeshes[sq] = mesh;
+                    }
+                }
+            }
+        }
+
+        function clearHighlights() {
+            Object.keys(highlightMeshes).forEach(sq => {
+                highlightMeshes[sq].visible = false;
+            });
+        }
+
+        function showHighlightsForSquare(square) {
+            clearHighlights();
+            legalMovesForSelected = chess.moves({ square });
+
+            if (highlightMeshes[square]) {
+                const hl = highlightMeshes[square];
+                hl.visible = true;
+                hl.userData.ringMat.color.setHex(0xfacc15);
+                hl.userData.padMat.color.setHex(0xfacc15);
+            }
+
+            legalMovesForSelected.forEach(mv => {
+                const hl = highlightMeshes[mv.to];
+                if (hl) {
+                    hl.visible = true;
+                    const isCapture = mv.flags.includes('c') || mv.flags.includes('e');
+                    const col = isCapture ? 0xf43f5e : 0x38bdf8;
+                    hl.userData.ringMat.color.setHex(col);
+                    hl.userData.padMat.color.setHex(col);
+                }
+            });
+        }
+
+        let currentChoreography = null;
+
+        function executeChoreographedMove(moveObj) {
+            if (isAnimatingAction) return;
+            isAnimatingAction = true;
+            clearHighlights();
+            selectedSquare = null;
+
+            const fromSq = moveObj.from;
+            const toSq = moveObj.to;
+            const attackerMesh = pieceMeshes[fromSq];
+            let defenderMesh = pieceMeshes[toSq];
+
+            let captureSq = toSq;
+            if (moveObj.flags.includes('e')) {
+                const epRank = moveObj.color === 'w' ? '5' : '4';
+                captureSq = `${toSq[0]}${epRank}`;
+                defenderMesh = pieceMeshes[captureSq];
+            }
+
+            const startPos = squareToWorld(fromSq);
+            const targetPos = squareToWorld(toSq);
+            const isCapture = Boolean(defenderMesh);
+            const charData = attackerMesh.userData.charData;
+            const isRanged = charData.attackType === 'blaster' || charData.attackType === 'lightning';
+
+            const appliedMove = chess.move({ from: fromSq, to: toSq });
+
+            const dirVec = new THREE.Vector3().subVectors(targetPos, startPos);
+            const targetAngle = Math.atan2(dirVec.x, dirVec.z);
+            attackerMesh.userData.bodyGroup.rotation.y = targetAngle;
+
+            const bannerText = document.getElementById('banner-text');
+            if (isCapture && defenderMesh) {
+                const victimData = defenderMesh.userData.charData;
+                bannerText.textContent = `${charData.name} strikes ${victimData.name} with ${charData.weapon} — SHATTERING stone!`;
+            } else {
+                bannerText.textContent = `${charData.name} glides across the Holotable to sector ${toSq.toUpperCase()}.`;
+            }
+
+            soundFX.playStoneSlide();
+
+            currentChoreography = {
+                attackerMesh,
+                defenderMesh,
+                fromSq,
+                toSq,
+                captureSq,
+                startPos,
+                targetPos,
+                isCapture,
+                isRanged,
+                charData,
+                appliedMove,
+                elapsed: 0,
+                boltSpawned: false,
+                shattered: false,
+                duration: isCapture ? 1.15 : 0.58
+            };
+        }
+
+        function finalizeChoreography(choreo) {
+            const { attackerMesh, defenderMesh, fromSq, toSq, captureSq, targetPos, appliedMove } = choreo;
+
+            if (defenderMesh) {
+                scene.remove(defenderMesh);
+                delete pieceMeshes[captureSq];
+                if (appliedMove.color === 'w') capturedByLight++;
+                else capturedByDark++;
+            }
+
+            delete pieceMeshes[fromSq];
+            pieceMeshes[toSq] = attackerMesh;
+            attackerMesh.position.copy(targetPos);
+            attackerMesh.userData.square = toSq;
+            attackerMesh.userData.bodyGroup.rotation.y = attackerMesh.userData.baseRotationY;
+            attackerMesh.userData.weaponPivot.rotation.set(0.2, 0, 0);
+
+            if (appliedMove.flags.includes('k') || appliedMove.flags.includes('q')) {
+                const rank = appliedMove.color === 'w' ? '1' : '8';
+                const rookFrom = appliedMove.flags.includes('k') ? `h${rank}` : `a${rank}`;
+                const rookTo = appliedMove.flags.includes('k') ? `f${rank}` : `d${rank}`;
+                const rookMesh = pieceMeshes[rookFrom];
+                if (rookMesh) {
+                    delete pieceMeshes[rookFrom];
+                    pieceMeshes[rookTo] = rookMesh;
+                    rookMesh.position.copy(squareToWorld(rookTo));
+                    rookMesh.userData.square = rookTo;
+                }
+            }
+
+            if (appliedMove.flags.includes('p')) {
+                scene.remove(attackerMesh);
+                const promotedQueen = createCharacterPieceMesh('q', appliedMove.color);
+                promotedQueen.position.copy(targetPos);
+                promotedQueen.userData.square = toSq;
+                scene.add(promotedQueen);
+                pieceMeshes[toSq] = promotedQueen;
+            }
+
+            currentChoreography = null;
+            isAnimatingAction = false;
+            updateUIStatus();
+
+            if (!chess.game_over() && vsDroidAI && chess.turn() === 'b') {
+                setTimeout(triggerSithAIMove, 450);
+            }
+        }
+
+        /***********************************************************************
+         * 10. TACTICAL SITH DROID AI & DEMO SHATTER TRIGGER
+         ***********************************************************************/
+        const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+
+        function evaluateBoardMaterial() {
+            const b = chess.board();
+            let score = 0;
+            for (let r = 0; r < 8; r++) {
+                for (let f = 0; f < 8; f++) {
+                    const p = b[r][f];
+                    if (p) {
+                        const val = PIECE_VALUES[p.type] || 0;
+                        const centerBonus = (r >= 2 && r <= 5 && f >= 2 && f <= 5) ? 16 : 0;
+                        score += p.color === 'b' ? (val + centerBonus) : -(val + centerBonus);
+                    }
+                }
+            }
+            return score;
+        }
+
+        function triggerSithAIMove() {
+            if (chess.game_over() || isAnimatingAction || chess.turn() !== 'b') return;
+
+            const legalMoves = chess.moves();
+            if (legalMoves.length === 0) return;
+
+            let bestMove = legalMoves[0];
+            let bestScore = -Infinity;
+
+            legalMoves.forEach(mv => {
+                const snap = chess.cloneState();
+                chess.applyMoveRaw(mv);
+                let score = evaluateBoardMaterial() + (Math.random() * 24 - 12);
+                if (mv.flags.includes('c') || mv.flags.includes('e')) {
+                    score += 65;
+                }
+                if (chess.in_check('w')) {
+                    score += 35;
+                }
+                chess.restoreState(snap);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = mv;
+                }
+            });
+
+            executeChoreographedMove(bestMove);
+        }
+
+        function triggerDemoShatterAction() {
+            if (isAnimatingAction || chess.game_over()) return;
+
+            const legalMoves = chess.moves();
+            const captureMoves = legalMoves.filter(m => m.flags.includes('c') || m.flags.includes('e'));
+
+            if (captureMoves.length > 0) {
+                const chosen = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+                executeChoreographedMove(chosen);
+            } else {
+                const forwardMoves = legalMoves.filter(m => ['d4', 'e4', 'd5', 'e5', 'c3', 'f3', 'c6', 'f6'].includes(m.to));
+                const moveChoice = forwardMoves.length > 0
+                    ? forwardMoves[Math.floor(Math.random() * forwardMoves.length)]
+                    : legalMoves[Math.floor(Math.random() * legalMoves.length)];
+
+                const destWorld = squareToWorld(moveChoice.to);
+                soundFX.playStoneShatter();
+                spawnShatterExplosion(destWorld, chess.turn() === 'w' ? 'b' : 'w');
+                executeChoreographedMove(moveChoice);
+            }
+        }
+
+        /***********************************************************************
+         * 11. CAMERA ORBIT CONTROLS & RAYCAST INTERACTION
+         ***********************************************************************/
+        const cameraState = {
+            theta: 0,
+            phi: 0.80,
+            radius: 23.0,
+            targetTheta: 0,
+            targetPhi: 0.80,
+            targetRadius: 23.0,
+            presetIndex: 0
+        };
+
+        const CAMERA_PRESETS = [
+            { name: 'Jedi View', theta: 0, phi: 0.80, radius: 23.0 },
+            { name: 'Sith View', theta: Math.PI, phi: 0.80, radius: 23.0 },
+            { name: 'Holotable Top', theta: 0, phi: 0.22, radius: 25.5 },
+            { name: 'Cinematic Flank', theta: Math.PI / 3.2, phi: 0.96, radius: 21.0 }
+        ];
+
+        let isDraggingCamera = false;
+        let pointerDownPos = { x: 0, y: 0 };
+        let lastPointerPos = { x: 0, y: 0 };
+
+        const raycaster = new THREE.Raycaster();
+        const pointerNDC = new THREE.Vector2();
+
+        function getClickedBoardSquare(clientX, clientY) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(pointerNDC, camera);
+
+            const pieceRoots = Object.values(pieceMeshes);
+            const pieceIntersects = raycaster.intersectObjects(pieceRoots, true);
+            if (pieceIntersects.length > 0) {
+                let obj = pieceIntersects[0].object;
+                while (obj && !obj.userData.square) {
+                    obj = obj.parent;
+                }
+                if (obj && obj.userData.square) return obj.userData.square;
+            }
+
+            const tileList = Object.values(squareMeshes);
+            const tileIntersects = raycaster.intersectObjects(tileList, false);
+            if (tileIntersects.length > 0) {
+                return tileIntersects[0].object.userData.square;
+            }
+
+            return null;
+        }
+
+        function handleSquareSelection(sq) {
+            if (!sq || isAnimatingAction || chess.game_over()) return;
+            if (vsDroidAI && chess.turn() === 'b') return;
+
+            if (selectedSquare) {
+                const matchingMove = legalMovesForSelected.find(m => m.to === sq);
+                if (matchingMove) {
+                    executeChoreographedMove(matchingMove);
+                    return;
+                }
+            }
+
+            const pieceOnSq = chess.get(sq);
+            if (pieceOnSq && pieceOnSq.color === chess.turn()) {
+                selectedSquare = sq;
+                soundFX.playSelect(pieceOnSq.color === 'w');
+                showHighlightsForSquare(sq);
+
+                const charInfo = STAR_WARS_ROSTER[pieceOnSq.color][pieceOnSq.type];
+                document.getElementById('banner-text').textContent =
+                    `${charInfo.name} (${sq.toUpperCase()}) • ${charInfo.weapon} — Select a highlighted tile to move or strike.`;
+            } else {
+                selectedSquare = null;
+                legalMovesForSelected = [];
+                clearHighlights();
+            }
+        }
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDraggingCamera = true;
+            pointerDownPos = { x: e.clientX, y: e.clientY };
+            lastPointerPos = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingCamera) return;
+            const dx = e.clientX - lastPointerPos.x;
+            const dy = e.clientY - lastPointerPos.y;
+            lastPointerPos = { x: e.clientX, y: e.clientY };
+
+            cameraState.targetTheta -= dx * 0.0065;
+            cameraState.targetPhi = Math.max(0.2, Math.min(1.38, cameraState.targetPhi - dy * 0.0055));
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (!isDraggingCamera) return;
+            isDraggingCamera = false;
+            const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+            if (dist < 6) {
+                const sq = getClickedBoardSquare(e.clientX, e.clientY);
+                handleSquareSelection(sq);
+            }
+        });
+
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isDraggingCamera = true;
+                pointerDownPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                lastPointerPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        }, { passive: true });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            if (!isDraggingCamera || e.touches.length !== 1) return;
+            const dx = e.touches[0].clientX - lastPointerPos.x;
+            const dy = e.touches[0].clientY - lastPointerPos.y;
+            lastPointerPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+            cameraState.targetTheta -= dx * 0.0065;
+            cameraState.targetPhi = Math.max(0.2, Math.min(1.38, cameraState.targetPhi - dy * 0.0055));
+        }, { passive: true });
+
+        renderer.domElement.addEventListener('touchend', (e) => {
+            if (!isDraggingCamera) return;
+            isDraggingCamera = false;
+            const touch = e.changedTouches[0];
+            if (touch) {
+                const dist = Math.hypot(touch.clientX - pointerDownPos.x, touch.clientY - pointerDownPos.y);
+                if (dist < 10) {
+                    const sq = getClickedBoardSquare(touch.clientX, touch.clientY);
+                    handleSquareSelection(sq);
+                }
+            }
+        });
+
+        renderer.domElement.addEventListener('wheel', (e) => {
+            cameraState.targetRadius = Math.max(13, Math.min(34, cameraState.targetRadius + e.deltaY * 0.012));
+        }, { passive: true });
+
+        /***********************************************************************
+         * 12. UI NAVIGATION BAR CONTROLS & MAIN ANIMATION LOOP
+         ***********************************************************************/
+        function updateUIStatus() {
+            const turn = chess.turn();
+            const turnBadge = document.getElementById('turn-badge');
+            const turnDot = document.getElementById('turn-dot');
+            const turnText = document.getElementById('turn-text');
+            const borderMat = borderGlow.material;
+
+            document.getElementById('captured-by-light').textContent = capturedByLight;
+            document.getElementById('captured-by-dark').textContent = capturedByDark;
+
+            if (turn === 'w') {
+                turnBadge.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/40 text-sky-200 text-xs font-semibold transition-all duration-300';
+                turnDot.className = 'w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]';
+                turnText.textContent = chess.in_check('w') ? 'LIGHT SIDE • IN CHECK!' : 'LIGHT SIDE (MARBLE)';
+                borderMat.color.setHex(0x38bdf8);
+                borderMat.emissive.setHex(0x38bdf8);
+            } else {
+                turnBadge.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-400/40 text-rose-200 text-xs font-semibold transition-all duration-300';
+                turnDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]';
+                turnText.textContent = chess.in_check('b') ? 'DARK SIDE • IN CHECK!' : 'DARK SIDE (OBSIDIAN)';
+                borderMat.color.setHex(0xf43f5e);
+                borderMat.emissive.setHex(0xf43f5e);
+            }
+
+            if (chess.game_over()) {
+                const modal = document.getElementById('modal-overlay');
+                const title = document.getElementById('modal-title');
+                const desc = document.getElementById('modal-desc');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                if (chess.in_checkmate()) {
+                    const winner = turn === 'w' ? 'DARK SIDE (OBSIDIAN)' : 'LIGHT SIDE (MARBLE)';
+                    title.textContent = `${winner} TRIUMPHS`;
+                    desc.textContent = turn === 'w'
+                        ? 'Emperor Palpatine and the Sith Order have shattered the Jedi Sanctuary.'
+                        : 'Grand Master Yoda and the Light Side have brought balance to the Force.';
+                } else {
+                    title.textContent = 'BALANCE IN THE FORCE (STALEMATE)';
+                    desc.textContent = 'Neither Light nor Dark could claim dominion over the Dejarik Sanctuary.';
+                }
+            }
+        }
+
+        document.getElementById('btn-mode').addEventListener('click', () => {
+            vsDroidAI = !vsDroidAI;
+            const btn = document.getElementById('btn-mode');
+            const label = document.getElementById('mode-label');
+            const icon = document.getElementById('mode-icon');
+            if (vsDroidAI) {
+                btn.classList.add('active-jedi');
+                label.textContent = 'VS Sith AI';
+                icon.textContent = 'smart_toy';
+                if (chess.turn() === 'b' && !isAnimatingAction && !chess.game_over()) {
+                    triggerSithAIMove();
+                }
+            } else {
+                btn.classList.remove('active-jedi');
+                label.textContent = '2P Pass & Play';
+                icon.textContent = 'group';
+            }
+        });
+
+        document.getElementById('btn-demo-shatter').addEventListener('click', triggerDemoShatterAction);
+
+        document.getElementById('btn-camera').addEventListener('click', () => {
+            cameraState.presetIndex = (cameraState.presetIndex + 1) % CAMERA_PRESETS.length;
+            const preset = CAMERA_PRESETS[cameraState.presetIndex];
+            cameraState.targetTheta = preset.theta;
+            cameraState.targetPhi = preset.phi;
+            cameraState.targetRadius = preset.radius;
+            document.getElementById('camera-label').textContent = preset.name;
+        });
+
+        document.getElementById('btn-undo').addEventListener('click', () => {
+            if (isAnimatingAction) return;
+            if (vsDroidAI) {
+                chess.undo();
+                chess.undo();
+            } else {
+                chess.undo();
+            }
+            clearHighlights();
+            selectedSquare = null;
+            syncPiecesWithBoard();
+            updateUIStatus();
+            document.getElementById('banner-text').textContent = 'Time reversed through the World Between Worlds.';
+        });
+
+        document.getElementById('btn-sound').addEventListener('click', () => {
+            soundFX.enabled = !soundFX.enabled;
+            document.getElementById('sound-icon').textContent = soundFX.enabled ? 'volume_up' : 'volume_off';
+        });
+
+        document.getElementById('btn-export-zip').addEventListener('click', async () => {
+            const labelEl = document.getElementById('export-zip-label');
+            const bannerText = document.getElementById('banner-text');
+            try {
+                if (labelEl) labelEl.textContent = 'Bundling...';
+                const fullHtml = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+                const netlifyToml = [
+                    '[build]',
+                    '  publish = "."',
+                    '',
+                    '[[headers]]',
+                    '  for = "/*"',
+                    '  [headers.values]',
+                    '    X-Frame-Options = "SAMEORIGIN"',
+                    '    X-Content-Type-Options = "nosniff"',
+                    '    Cache-Control = "public, max-age=3600"'
+                ].join('\n');
+
+                const readmeMd = [
+                    '# Dejarik: Star Wars 3D Wizard\'s Chess (Marble vs. Obsidian)',
+                    '',
+                    'A playable single-file 3D Star Wars Wizard\'s Chess web application built with Material Design 3 standards and Three.js.',
+                    '',
+                    '## Features',
+                    '- **32 Sculpted Star Wars Characters:** White Carrara Marble (Light Side) vs. Volcanic Obsidian (Dark Side).',
+                    '- **Choreographed Combat & Shatter Physics:** Custom idle, glide, lightsaber swing, blaster bolt, and kinetic stone-shatter animations.',
+                    '- **Self-Contained FIDE Chess Engine & Sith Droid AI:** Full legal move validation, castling, en passant, check/checkmate, and AI opponent.',
+                    '',
+                    '## Quick Deploy (Antigravity / Netlify / GitHub Pages)',
+                    '- **Netlify Drop:** Drag this unzipped folder straight into https://app.netlify.com/drop',
+                    '- **Netlify CLI:** Run `npx netlify-cli deploy --prod --dir=.`',
+                    '- **GitHub CLI:** Run `gh repo create star-wars-wizards-chess --public --source=. --remote=origin --push`'
+                ].join('\n');
+
+                if (typeof JSZip !== 'undefined') {
+                    const zip = new JSZip();
+                    zip.file('index.html', fullHtml);
+                    zip.file('netlify.toml', netlifyToml);
+                    zip.file('README.md', readmeMd);
+
+                    const blob = await zip.generateAsync({ type: 'blob' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'star-wars-wizards-chess-deploy.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    bannerText.textContent = 'Downloaded star-wars-wizards-chess-deploy.zip (includes index.html, netlify.toml & README.md)!';
+                } else {
+                    const blob = new Blob([fullHtml], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'index.html';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    bannerText.textContent = 'Downloaded index.html ready for deployment!';
+                }
+            } catch (err) {
+                bannerText.textContent = 'Use the Download button in the top-right preview bar to save the HTML file.';
+            } finally {
+                if (labelEl) labelEl.textContent = 'Export .ZIP';
+            }
+        });
+
+        function resetMatch() {
+            if (isAnimatingAction) return;
+            chess.reset();
+            capturedByLight = 0;
+            capturedByDark = 0;
+            selectedSquare = null;
+            clearHighlights();
+            syncPiecesWithBoard();
+            updateUIStatus();
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.remove('flex');
+            document.getElementById('banner-text').textContent = 'New battle initialized. Light Side (White Marble) commands first.';
+        }
+
+        document.getElementById('btn-reset').addEventListener('click', resetMatch);
+        document.getElementById('modal-btn-restart').addEventListener('click', resetMatch);
+
+        function handleViewportResize() {
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+            if (w > 0 && h > 0) {
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            }
+        }
+
+        window.addEventListener('resize', handleViewportResize);
+        if (window.ResizeObserver) {
+            new ResizeObserver(handleViewportResize).observe(container);
+        }
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsedTime = clock.getElapsedTime();
+
+            // 1. Smoothly Interpolate Camera Orbit
+            cameraState.theta += (cameraState.targetTheta - cameraState.theta) * 0.09;
+            cameraState.phi += (cameraState.targetPhi - cameraState.phi) * 0.09;
+            cameraState.radius += (cameraState.targetRadius - cameraState.radius) * 0.09;
+
+            camera.position.x = cameraState.radius * Math.sin(cameraState.phi) * Math.sin(cameraState.theta);
+            camera.position.y = cameraState.radius * Math.cos(cameraState.phi);
+            camera.position.z = cameraState.radius * Math.sin(cameraState.phi) * Math.cos(cameraState.theta);
+            camera.lookAt(0, 0.5, 0);
+
+            // 2. Custom Idle Animations for All 32 Sculpted Pieces
+            Object.values(pieceMeshes).forEach(piece => {
+                if (currentChoreography && piece === currentChoreography.attackerMesh) return;
+
+                const { bodyGroup, weaponPivot, type, idleSeed } = piece.userData;
+                const phase = elapsedTime * 2.2 + idleSeed;
+
+                if (type === 'k' || type === 'q') {
+                    bodyGroup.position.y = Math.sin(phase) * 0.06 + 0.04;
+                } else {
+                    bodyGroup.position.y = Math.abs(Math.sin(phase * 0.85)) * 0.03;
+                }
+
+                weaponPivot.rotation.z = Math.sin(phase * 0.9) * 0.06;
+            });
+
+            // 3. Pulse Legal Move Highlight Rings
+            Object.values(highlightMeshes).forEach(hl => {
+                if (hl.visible) {
+                    const scale = 0.92 + Math.sin(elapsedTime * 5) * 0.08;
+                    hl.children[0].scale.set(scale, scale, 1);
+                }
+            });
+
+            // 4. Update Active Move / Attack / Shatter Choreography
+            if (currentChoreography) {
+                const c = currentChoreography;
+                c.elapsed += dt;
+                const progress = Math.min(c.elapsed / c.duration, 1);
+
+                if (!c.isCapture) {
+                    const ease = progress < 0.5
+                        ? 2 * progress * progress
+                        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                    c.attackerMesh.position.lerpVectors(c.startPos, c.targetPos, ease);
+                    c.attackerMesh.position.y = Math.sin(progress * Math.PI) * 0.35;
+                } else {
+                    if (progress < 0.55) {
+                        const pA = progress / 0.55;
+                        const stopFraction = c.isRanged ? 0.35 : 0.76;
+                        const strikeSpot = new THREE.Vector3().lerpVectors(c.startPos, c.targetPos, stopFraction);
+                        c.attackerMesh.position.lerpVectors(c.startPos, strikeSpot, pA);
+                        c.attackerMesh.userData.weaponPivot.rotation.x = -0.85 * pA;
+                    } else if (progress < 0.78) {
+                        const pB = (progress - 0.55) / 0.23;
+                        c.attackerMesh.userData.weaponPivot.rotation.x = -0.85 + pB * 2.15;
+
+                        if (c.isRanged && !c.boltSpawned) {
+                            c.boltSpawned = true;
+                            soundFX.playBlasterBolt();
+                            spawnEnergyBolt(c.attackerMesh.position, c.targetPos, c.charData.saberColor);
+                        } else if (!c.isRanged && !c.boltSpawned) {
+                            c.boltSpawned = true;
+                            soundFX.playSaberSwing();
+                        }
+
+                        if (pB > 0.42 && !c.shattered && c.defenderMesh) {
+                            c.shattered = true;
+                            soundFX.playStoneShatter();
+                            spawnShatterExplosion(c.defenderMesh.position, c.defenderMesh.userData.color);
+                            c.defenderMesh.visible = false;
+                        }
+                    } else {
+                        const pC = (progress - 0.78) / 0.22;
+                        c.attackerMesh.position.lerp(c.targetPos, pC * 0.45);
+                        c.attackerMesh.userData.weaponPivot.rotation.x = THREE.MathUtils.lerp(1.3, 0.2, pC);
+                    }
+                }
+
+                if (progress >= 1) {
+                    finalizeChoreography(c);
+                }
+            }
+
+            // 5. Update Shattered Marble & Obsidian Shards Physics
+            for (let i = activeShards.length - 1; i >= 0; i--) {
+                const s = activeShards[i];
+                s.age += dt;
+                if (s.age >= s.maxLife) {
+                    scene.remove(s.mesh);
+                    activeShards.splice(i, 1);
+                    continue;
+                }
+
+                s.velocity.y -= 15.5 * dt;
+                s.mesh.position.addScaledVector(s.velocity, dt);
+                s.mesh.rotation.x += s.rotVel.x * dt;
+                s.mesh.rotation.y += s.rotVel.y * dt;
+                s.mesh.rotation.z += s.rotVel.z * dt;
+
+                if (s.mesh.position.y < 0.08) {
+                    s.mesh.position.y = 0.08;
+                    s.velocity.y *= -0.42;
+                    s.velocity.x *= 0.72;
+                    s.velocity.z *= 0.72;
+                }
+
+                const lifeRatio = 1 - s.age / s.maxLife;
+                if (lifeRatio < 0.3) {
+                    s.mesh.scale.setScalar(lifeRatio / 0.3);
+                }
+            }
+
+            // 6. Update Blaster Bolts & Shockwave Rings
+            for (let i = activeBolts.length - 1; i >= 0; i--) {
+                const b = activeBolts[i];
+                b.age += dt;
+                const prog = b.age / b.maxLife;
+                if (prog >= 1) {
+                    scene.remove(b.mesh);
+                    activeBolts.splice(i, 1);
+                    continue;
+                }
+                if (b.type === 'bolt') {
+                    b.mesh.position.lerpVectors(b.start, b.end, prog);
+                } else if (b.type === 'shockwave') {
+                    const scale = 1 + prog * 6.5;
+                    b.mesh.scale.set(scale, scale, 1);
+                    b.mat.opacity = 0.9 * (1 - prog);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function bootstrapHolochess() {
+            handleViewportResize();
+            syncPiecesWithBoard();
+            updateUIStatus();
+            animate();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bootstrapHolochess);
+        } else {
+            bootstrapHolochess();
+        }
+    </script>
+</body>
+</html>
